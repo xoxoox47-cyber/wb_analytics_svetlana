@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Анализ действий — до/после</title>
+<style>
+:root{
+  --bg:#0f1115;
+  --panel:#161922;
+  --panel2:#1d2129;
+  --border:#2a2f3a;
+  --text:#e7e9ee;
+  --text-dim:#8b92a3;
+  --text-faint:#5b6172;
+  --accent:#5b8def;
+  --price:#e0a64a;
+  --budget:#5b8def;
+  --comment:#5fb88a;
+  --up:#5fb88a;
+  --down:#e2645e;
+  --mono: 'SF Mono', 'Consolas', 'Menlo', monospace;
+  --sans: -apple-system, 'Segoe UI', Arial, sans-serif;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--sans); font-size:14px; line-height:1.4;
+}
+.app{ display:flex; flex-direction:column; min-height:100vh; }
+
+.loading-screen, .error-screen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+}
+.loading-box{ text-align:center; max-width:380px; padding:24px; }
+.loading-spinner{
+  width:34px; height:34px; border:3px solid var(--border); border-top-color:var(--accent);
+  border-radius:50%; margin:0 auto 18px; animation:spin 0.9s linear infinite;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.loading-text{ font-size:14.5px; color:var(--text); margin-bottom:6px; }
+.loading-sub{ font-size:12.5px; color:var(--text-faint); }
+.error-icon{ font-size:28px; color:var(--down); margin-bottom:10px; }
+.retry-btn{
+  margin-top:16px; background:var(--accent); color:#0f1115; border:none; border-radius:7px;
+  padding:9px 20px; font-size:13px; font-weight:600; cursor:pointer;
+}
+.retry-btn:hover{ opacity:0.9; }
+
+/* ---------- header ---------- */
+header{
+  padding:18px 24px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  flex-wrap:wrap; background:var(--panel);
+}
+header h1{ font-size:17px; margin:0; font-weight:600; letter-spacing:-0.01em; }
+header .sub{ color:var(--text-dim); font-size:12.5px; margin-top:2px; }
+.stat-pills{ display:flex; gap:10px; flex-wrap:wrap; }
+.pill{
+  background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+  padding:7px 12px; font-size:12px; color:var(--text-dim); display:flex; gap:6px; align-items:baseline;
+}
+.pill b{ color:var(--text); font-size:14px; font-family:var(--mono); }
+
+/* ---------- filters ---------- */
+/* ---------- tabs ---------- */
+.tab-row{ display:flex; gap:2px; padding:0 24px; background:var(--panel); border-bottom:1px solid var(--border); }
+.tab{
+  padding:11px 16px; font-size:13px; color:var(--text-dim); cursor:pointer; border-bottom:2px solid transparent;
+  transition:color .12s;
+}
+.tab:hover{ color:var(--text); }
+.tab.active{ color:var(--text); border-bottom-color:var(--accent); font-weight:600; }
+
+/* ---------- analysis view ---------- */
+.analysis-view{ flex:1; overflow-y:auto; padding:20px 24px; }
+.analysis-section{ margin-bottom:32px; }
+.analysis-section h2{ font-size:14.5px; margin:0 0 4px; font-weight:600; }
+.analysis-section .a-sub{ color:var(--text-dim); font-size:12px; margin-bottom:14px; }
+.analysis-cards{ display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+.a-card{
+  background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:14px 18px; min-width:150px;
+}
+.a-card .a-num{ font-size:22px; font-family:var(--mono); font-weight:600; }
+.a-card .a-lbl{ font-size:11.5px; color:var(--text-faint); margin-top:2px; text-transform:uppercase; letter-spacing:.03em; }
+.a-card.good .a-num{ color:var(--up); }
+.a-card.bad .a-num{ color:var(--down); }
+.a-card.neutral .a-num{ color:var(--text-dim); }
+
+.a-table-wrap{ background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.a-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.a-table th{
+  text-align:left; padding:9px 12px; background:var(--panel2); color:var(--text-faint); font-weight:500;
+  font-size:11px; text-transform:uppercase; letter-spacing:.03em; cursor:pointer; user-select:none; white-space:nowrap;
+}
+.a-table th:hover{ color:var(--text); }
+.a-table th.num, .a-table td.num{ text-align:right; font-family:var(--mono); }
+.a-table td{ padding:8px 12px; border-top:1px solid #1f232c; }
+.a-table tr:hover td{ background:#1a1e26; }
+.a-badge{ display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:10px; }
+.a-badge.good{ background:rgba(95,184,138,.15); color:var(--up); }
+.a-badge.bad{ background:rgba(226,100,94,.15); color:var(--down); }
+.a-badge.neutral{ background:rgba(139,146,163,.15); color:var(--text-dim); }
+.a-filter-row{ display:flex; gap:8px; margin-bottom:10px; }
+
+.filters{
+  padding:14px 24px; border-bottom:1px solid var(--border);
+  display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:var(--panel);
+}
+.filters label{ font-size:11.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; margin-right:6px;}
+.filt-group{ display:flex; align-items:center; gap:6px; }
+select, .search-box{
+  background:var(--panel2); border:1px solid var(--border); color:var(--text);
+  border-radius:7px; padding:7px 10px; font-size:13px; font-family:var(--sans);
+  outline:none;
+}
+select:hover, .search-box:hover{ border-color:#3a4150; }
+select:focus, .search-box:focus{ border-color:var(--accent); }
+.search-box{ width:220px; }
+input[type="date"]{ color-scheme: dark; }
+input[type="date"]::-webkit-calendar-picker-indicator{ filter: invert(0.6); cursor:pointer; }
+.chip-row{ display:flex; gap:6px; }
+.chip{
+  border:1px solid var(--border); background:var(--panel2); color:var(--text-dim);
+  border-radius:20px; padding:6px 13px; font-size:12.5px; cursor:pointer; user-select:none;
+  transition:all .12s;
+}
+.chip:hover{ border-color:#3a4150; color:var(--text);}
+.chip.active{ color:#0f1115; font-weight:600; border-color:transparent; }
+.chip.active[data-type="Цена"]{ background:var(--price); }
+.chip.active[data-type="Бюджет РК"]{ background:var(--budget); }
+.chip.active[data-type="Комментарий"]{ background:var(--comment); }
+.chip.active[data-type="all"]{ background:var(--text); }
+.reset-btn{
+  margin-left:auto; background:none; border:1px solid var(--border); color:var(--text-dim);
+  border-radius:7px; padding:7px 12px; font-size:12.5px; cursor:pointer;
+}
+.reset-btn:hover{ color:var(--text); border-color:#3a4150; }
+
+/* ---------- body layout ---------- */
+.body-grid{ display:flex; flex:1; min-height:0; }
+.col-list{ flex:1; min-width:0; overflow-y:auto; padding:18px 24px; }
+.col-detail{
+  width:480px; flex-shrink:0; border-left:1px solid var(--border); background:var(--panel);
+  overflow-y:auto; display:none;
+}
+.col-detail.open{ display:block; }
+
+.list-meta{ color:var(--text-faint); font-size:12px; margin-bottom:12px; }
+
+/* ---------- event cards ---------- */
+.event-card{
+  background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  margin-bottom:10px; padding:14px 16px; cursor:pointer; transition:border-color .12s, transform .08s;
+  border-left:3px solid var(--border);
+}
+.event-card:hover{ border-color:#3a4150; }
+.event-card[data-type="Цена"]{ border-left-color:var(--price); }
+.event-card[data-type="Бюджет РК"]{ border-left-color:var(--budget); }
+.event-card[data-type="Комментарий"]{ border-left-color:var(--comment); }
+
+.ec-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.ec-art{ font-weight:600; font-size:13.5px; }
+.ec-tags{ color:var(--text-faint); font-size:11.5px; margin-top:3px; }
+.ec-tags span{ margin-right:8px; }
+.ec-date{ color:var(--text-dim); font-size:12px; font-family:var(--mono); white-space:nowrap; }
+.ec-type-badge{
+  display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+  padding:2px 7px; border-radius:4px; margin-bottom:6px;
+}
+.ec-type-badge[data-type="Цена"]{ background:rgba(224,166,74,.15); color:var(--price); }
+.ec-type-badge[data-type="Бюджет РК"]{ background:rgba(91,141,239,.15); color:var(--budget); }
+.ec-type-badge[data-type="Комментарий"]{ background:rgba(95,184,138,.15); color:var(--comment); }
+.ec-desc{ font-size:13px; color:var(--text); margin:6px 0 10px; font-family:var(--mono); }
+
+.ec-metrics{ display:flex; gap:18px; flex-wrap:wrap; }
+.ec-metric{ font-size:12px; }
+.ec-metric .lbl{ color:var(--text-faint); display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px;}
+.ec-metric .val{ font-family:var(--mono); font-size:13px; }
+.delta{ font-size:11px; margin-left:4px; font-family:var(--mono); }
+.delta.up{ color:var(--up); }
+.delta.down{ color:var(--down); }
+.delta.flat{ color:var(--text-faint); }
+
+.empty-state{ color:var(--text-faint); text-align:center; padding:60px 20px; font-size:13px; }
+
+/* ---------- detail panel ---------- */
+.detail-head{
+  padding:18px 20px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--panel); z-index:2;
+}
+.detail-close{
+  float:right; background:none; border:none; color:var(--text-faint); font-size:18px; cursor:pointer; line-height:1;
+}
+.detail-close:hover{ color:var(--text); }
+.detail-title{ font-weight:600; font-size:15px; }
+.detail-sub{ color:var(--text-dim); font-size:12px; margin-top:3px; }
+.detail-body{ padding:16px 20px; }
+.detail-section-title{
+  font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-faint);
+  margin:18px 0 8px;
+}
+.chart-wrap{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px; }
+.chart-tooltip{
+  position:absolute; pointer-events:none; background:#0a0c10; border:1px solid var(--border);
+  border-radius:8px; padding:8px 10px; font-size:11px; font-family:var(--mono); z-index:10;
+  white-space:nowrap; box-shadow:0 4px 16px rgba(0,0,0,.4);
+}
+.chart-tooltip .tt-date{ color:var(--text-faint); margin-bottom:4px; font-family:var(--sans); font-size:10.5px; }
+.chart-tooltip .tt-row{ display:flex; align-items:center; gap:6px; }
+.chart-tooltip .tt-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.chart-tooltip .tt-val{ margin-left:auto; padding-left:10px; font-weight:600; }
+.metric-toggle{ display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+.metric-toggle button{
+  background:var(--panel); border:1px solid var(--border); color:var(--text-dim);
+  font-size:11px; padding:4px 9px; border-radius:6px; cursor:pointer;
+}
+.metric-toggle button.active{ color:#0f1115; background:var(--accent); border-color:transparent; font-weight:600;}
+
+.det-events-list .event-card{ margin-bottom:8px; padding:10px 12px; cursor:default;}
+.det-after-table{ width:100%; border-collapse:collapse; font-size:11.5px; margin-top:8px; }
+.det-after-table th{ text-align:right; color:var(--text-faint); font-weight:500; padding:4px 6px; border-bottom:1px solid var(--border); }
+.det-after-table th:first-child, .det-after-table td:first-child{ text-align:left; }
+.det-after-table td{ text-align:right; padding:4px 6px; font-family:var(--mono); border-bottom:1px solid #1f232c; }
+.det-after-table tr.before-row td{ color:var(--text-dim); font-style:italic; }
+
+::-webkit-scrollbar{ width:9px; height:9px; }
+::-webkit-scrollbar-thumb{ background:#2a2f3a; border-radius:5px; }
+::-webkit-scrollbar-track{ background:transparent; }
+
+@media (max-width:900px){
+  .col-detail{ position:fixed; right:0; top:0; bottom:0; width:100%; z-index:10; }
+}
+</style>
+</head>
+<body>
+<div class="app" style="display:none;">
+
+  <header>
+    <div>
+      <h1>Анализ действий менеджера — до / после</h1>
+      <div class="sub">Данные с <span id="dateFrom"></span> по <span id="dateTo"></span> · обновляется по будням</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="stat-pills" id="statPills"></div>
+      <button class="reset-btn" id="refreshBtn" title="Перезагрузить данные из Google Таблицы">↻ Обновить</button>
+    </div>
+  </header>
+
+  <div class="tab-row">
+    <div class="tab active" data-tab="events">События</div>
+    <div class="tab" data-tab="analysis">Анализ</div>
+  </div>
+
+  <div class="filters" id="eventFilters">
+    <div class="filt-group">
+      <label>Ткань</label>
+      <select id="f-tkan"><option value="">Все</option></select>
+    </div>
+    <div class="filt-group">
+      <label>Размер</label>
+      <select id="f-razmer"><option value="">Все</option></select>
+    </div>
+    <div class="filt-group">
+      <label>Цвет</label>
+      <select id="f-cvet"><option value="">Все</option></select>
+    </div>
+    <div class="filt-group">
+      <label>РК</label>
+      <select id="f-rk"><option value="">Все</option></select>
+    </div>
+    <div class="filt-group">
+      <label>Дата</label>
+      <input type="date" class="search-box" id="f-dateFrom" style="width:135px;">
+      <span style="color:var(--text-faint);">—</span>
+      <input type="date" class="search-box" id="f-dateTo" style="width:135px;">
+    </div>
+    <div class="filt-group">
+      <input class="search-box" id="f-search" placeholder="Поиск по артикулу…">
+    </div>
+    <div class="chip-row" id="typeChips">
+      <div class="chip active" data-type="all">Все события</div>
+      <div class="chip" data-type="Цена">Цена</div>
+      <div class="chip" data-type="Бюджет РК">Бюджет РК</div>
+      <div class="chip" data-type="Комментарий">Комментарий</div>
+    </div>
+    <button class="reset-btn" id="resetBtn">Сбросить фильтры</button>
+  </div>
+
+  <div class="body-grid" id="eventsView">
+    <div class="col-list" id="colList"></div>
+    <div class="col-detail" id="colDetail"></div>
+  </div>
+
+  <div class="analysis-view" id="analysisView" style="display:none;"></div>
+
+</div>
+
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Подключаюсь к Google Таблице…</div>
+    <div class="loading-sub" id="loadingSub">Это обычно занимает несколько секунд</div>
+  </div>
+</div>
+
+<div class="error-screen" id="errorScreen" style="display:none;">
+  <div class="loading-box">
+    <div class="error-icon">⚠</div>
+    <div class="loading-text" id="errorText">Не удалось загрузить данные</div>
+    <div class="loading-sub" id="errorSub"></div>
+    <button class="retry-btn" id="retryBtn">Повторить</button>
+  </div>
+</div>
+
+<script>
+// ====================== sheets-pipeline.js ======================
+// Тянет данные из Google Sheets (CSV через gviz/tq) и воспроизводит
+// тот же пайплайн, что раньше делал Python: парсинг -> детектор событий -> до/после
+
+const PIPELINE_CONFIG = {
+  // Источник 1: книга с комментариями менеджера, ценой, бюджетом, остатком, рейтингом
+  spreadsheetId: '1JkTLFa3PR9tT3bcg09WKoMH9ZucVWEl9Xz5Ej2v_lDU',
+  sheetNames: ['Рогожка360', 'РогожкаБлэкаут100%', 'Канвас'],
+  metaCols: ['Рейтинг склейки', 'Карточки рейтинг', 'Кол-во отзывов', 'рк', 'Артикула продавца', 'цвет', 'размер'],
+  params: ['Цена', 'Действие', 'Расход РК', 'Остаток'],
+
+  // Источник 2: лист "data" с воронкой рекламы (показы/переходы/корзины/заказы по типам размещения)
+  funnelSpreadsheetId: '1Olf_n2Jz_Yn6qN7WuWriC3PEkrvLEZgd-G2vNf-BYVM',
+  funnelSheetName: 'data',
+
+  lookbackDays: 7,
+  budgetThreshold: 0.30,
+  dateFrom: '2026-06-11',  // нижняя граница периода анализа
+  dateTo: null,             // null = до сегодня включительно; можно задать конкретную дату 'YYYY-MM-DD'
+};
+
+const ERROR_TOKENS = new Set(['#N/A', '#DIV/0!', '#REF!', '#VALUE!', '#NAME?', '#NULL!']);
+
+// ---------- 1. CSV parser (handles quoted fields with commas/newlines) ----------
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// ---------- 2. Date parsing: "18.05.2026" -> "2026-05-18" ----------
+function parseDateCell(s) {
+  if (!s) return null;
+  const m = String(s).trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
+
+function toNum(x) {
+  if (x === null || x === undefined || x === '') return null;
+  if (typeof x === 'number') return x;
+  let s = String(x).trim();
+  if (ERROR_TOKENS.has(s)) return null;
+  s = s.replace(/\u00a0/g, '').replace(/\s/g, '').replace(',', '.').replace('р.', '');
+  const v = parseFloat(s);
+  return Number.isNaN(v) ? null : v;
+}
+
+function sanitizeStr(v) {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (s === '' || ERROR_TOKENS.has(s)) return null;
+  return s;
+}
+
+// ---------- 3. Fetch one sheet's CSV ----------
+async function fetchSheetCSV(spreadsheetId, sheetName) {
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Не удалось загрузить лист "${sheetName}" (HTTP ${res.status}). Проверьте, что доступ к таблице открыт "всем у кого есть ссылка".`);
+  return res.text();
+}
+
+// ---------- 4. Parse one sheet into long records ----------
+function parseSheet(csvText, sheetName, dateFrom, dateTo) {
+  const rows = parseCSV(csvText);
+  if (rows.length < 5) return [];
+  const hdr = rows[3].map(h => (h || '').trim());
+
+  const colIdx = {};
+  PIPELINE_CONFIG.metaCols.forEach(name => {
+    const idx = hdr.indexOf(name);
+    if (idx >= 0) colIdx[name] = idx;
+  });
+  const paramIdx = hdr.indexOf('Параметр');
+  if (paramIdx < 0) return [];
+
+  // find date columns
+  const dateCols = [];
+  hdr.forEach((h, i) => {
+    const iso = parseDateCell(h);
+    if (iso && iso >= dateFrom && (!dateTo || iso <= dateTo)) dateCols.push([i, iso]);
+  });
+
+  const records = [];
+  let currentMeta = null;
+  for (let r = 4; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+    const param = (row[paramIdx] || '').trim();
+
+    const artikul = colIdx['Артикула продавца'] !== undefined ? sanitizeStr(row[colIdx['Артикула продавца']]) : null;
+    if (artikul) {
+      currentMeta = {};
+      PIPELINE_CONFIG.metaCols.forEach(name => {
+        if (colIdx[name] !== undefined) currentMeta[name === 'Артикула продавца' ? 'Артикул' : name] = sanitizeStr(row[colIdx[name]]);
+      });
+      currentMeta['Ткань'] = sheetName;
+    }
+
+    if (!PIPELINE_CONFIG.params.includes(param) || !currentMeta) continue;
+
+    dateCols.forEach(([di, iso]) => {
+      const raw = row[di];
+      records.push({ ...currentMeta, Параметр: param, Дата: iso, raw });
+    });
+  }
+  return records;
+}
+
+// ---------- 4b. Parse "data" sheet (flat table: 1 row = 1 artikul x 1 date) ----------
+const FUNNEL_COL_NAMES = {
+  date: 'Дата данных',
+  artikul: 'Артикул продавца',
+  shows: 'Показы реклама',
+  clicks: 'Переходы реклама',
+  cartAds: 'Кол-во корзин реклама',
+  cartOrganic: 'Кол-во корзин органика',
+  ordersTotal: 'Кол-во заказов реклама -всего заказов асс+поиск+полки',
+  ordersOrganic: 'Кол-во заказов органика ',
+  ordersShelf: 'Кол-во заказов полки  (каталог)',
+  ordersSearch: 'Кол-во заказов Поиск',
+  ordersMixed: 'Кол-во заказов смешанная',
+  assocConv: 'Ассоциированные конверсии',
+};
+
+function parseFunnelSheet(csvText, dateFrom, dateTo, wantedArtikuls) {
+  const rows = parseCSV(csvText);
+  if (rows.length < 2) return new Map();
+  const hdr = rows[0].map(h => (h || '').trim());
+
+  const idx = {};
+  Object.entries(FUNNEL_COL_NAMES).forEach(([key, colName]) => {
+    const i = hdr.indexOf(colName);
+    if (i >= 0) idx[key] = i;
+  });
+  if (idx.date === undefined || idx.artikul === undefined) return new Map();
+
+  // result: Map<artikul, Map<dateISO, {...}>>
+  const byArtikul = new Map();
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+    const artikul = sanitizeStr(row[idx.artikul]);
+    if (!artikul || (wantedArtikuls && !wantedArtikuls.has(artikul))) continue;
+
+    const rawDate = row[idx.date];
+    const iso = parseISOorSlashDate(rawDate);
+    if (!iso || iso < dateFrom || (dateTo && iso > dateTo)) continue;
+
+    if (!byArtikul.has(artikul)) byArtikul.set(artikul, new Map());
+    byArtikul.get(artikul).set(iso, {
+      shows: toNum(row[idx.shows]),
+      clicks: toNum(row[idx.clicks]),
+      cartAds: toNum(row[idx.cartAds]),
+      cartOrganic: toNum(row[idx.cartOrganic]),
+      ordersTotal: toNum(row[idx.ordersTotal]),
+      ordersOrganic: toNum(row[idx.ordersOrganic]),
+      ordersShelf: toNum(row[idx.ordersShelf]),
+      ordersSearch: toNum(row[idx.ordersSearch]),
+      ordersMixed: toNum(row[idx.ordersMixed]),
+      assocConv: toNum(row[idx.assocConv]),
+    });
+  }
+  return byArtikul;
+}
+
+// handles both "18.05.2026" and ISO "2026-05-18" and "2026-05-18T00:00:00.000Z" style dates from gviz
+function parseISOorSlashDate(s) {
+  if (!s) return null;
+  const str = String(s).trim();
+  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // gviz date literal format: Date(2026,4,18)  (month 0-indexed!)
+  m = str.match(/^Date\((\d+),(\d+),(\d+)/);
+  if (m) return `${m[1]}-${String(Number(m[2])+1).padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return null;
+}
+
+
+function buildArtikulData(records, funnelByArtikul) {
+  const byArtikul = new Map();
+  records.forEach(rec => {
+    const art = rec.Артикул;
+    if (!art) return;
+    if (!byArtikul.has(art)) {
+      byArtikul.set(art, {
+        meta: { Ткань: rec.Ткань, цвет: rec['цвет'], размер: rec['размер'], рк: rec['рк'],
+                'Рейтинг склейки': rec['Рейтинг склейки'], 'Карточки рейтинг': rec['Карточки рейтинг'],
+                'Кол-во отзывов': rec['Кол-во отзывов'] },
+        byDate: new Map(),
+      });
+    }
+    const entry = byArtikul.get(art);
+    if (!entry.byDate.has(rec.Дата)) entry.byDate.set(rec.Дата, {});
+    const dayRow = entry.byDate.get(rec.Дата);
+    if (rec.Параметр === 'Действие') dayRow['Действие'] = sanitizeStr(rec.raw);
+    else dayRow[rec.Параметр] = toNum(rec.raw);
+  });
+
+  // merge funnel data (Показы/Переходы/Корзины/Заказано по типам) into the same byDate rows
+  if (funnelByArtikul) {
+    funnelByArtikul.forEach((dateMap, art) => {
+      if (!byArtikul.has(art)) byArtikul.set(art, { meta: {}, byDate: new Map() });
+      const entry = byArtikul.get(art);
+      dateMap.forEach((f, iso) => {
+        if (!entry.byDate.has(iso)) entry.byDate.set(iso, {});
+        const dayRow = entry.byDate.get(iso);
+        dayRow['Показы'] = f.shows;
+        dayRow['Переходы'] = f.clicks;
+        dayRow['Корзины реклама'] = f.cartAds;
+        dayRow['Корзины органика'] = f.cartOrganic;
+        dayRow['Заказано'] = f.ordersTotal;
+        dayRow['Заказы органика'] = f.ordersOrganic;
+        dayRow['Заказы полки'] = f.ordersShelf;
+        dayRow['Заказы поиск'] = f.ordersSearch;
+        dayRow['Заказы смешанная'] = f.ordersMixed;
+        dayRow['Ассоц. конверсии'] = f.assocConv;
+      });
+    });
+  }
+
+  return byArtikul;
+}
+
+// ---------- 6. Detect events for one artikul ----------
+function detectEvents(byDate) {
+  const dates = [...byDate.keys()].sort();
+  const events = [];
+  dates.forEach((d, i) => {
+    const row = byDate.get(d);
+    const action = row['Действие'];
+    if (action) events.push({ Дата: d, Тип: 'Комментарий', Описание: action });
+
+    if (i === 0) return;
+    const prev = byDate.get(dates[i - 1]);
+
+    const p0 = prev['Цена'], p1 = row['Цена'];
+    if (p0 != null && p1 != null && p0 !== p1) {
+      events.push({ Дата: d, Тип: 'Цена', Описание: `${fmtInt(p0)} → ${fmtInt(p1)}` });
+    }
+
+    const b0 = prev['Расход РК'], b1 = row['Расход РК'];
+    if (b0 != null && b1 != null && b0 > 0) {
+      const change = (b1 - b0) / b0;
+      if (Math.abs(change) >= PIPELINE_CONFIG.budgetThreshold) {
+        const sign = change >= 0 ? '+' : '';
+        events.push({ Дата: d, Тип: 'Бюджет РК', Описание: `${fmtInt(b0)} → ${fmtInt(b1)} (${sign}${Math.round(change*100)}%)` });
+      }
+    }
+  });
+  return events;
+}
+
+function fmtInt(v) { return Math.round(v).toLocaleString('ru-RU'); }
+
+// ---------- 7. Metrics before/after ----------
+function metricsBefore(byDate, dates, eventDate, lookback) {
+  const idx = dates.indexOf(eventDate);
+  const windowDates = dates.slice(Math.max(0, idx - lookback), idx);
+  const cols = ['Показы', 'Переходы', 'Корзины реклама', 'Корзины органика', 'Заказано',
+                'Заказы органика', 'Заказы полки', 'Заказы поиск', 'Заказы смешанная', 'Ассоц. конверсии',
+                'Расход РК', 'Цена', 'Остаток'];
+  const sums = {}; cols.forEach(c => sums[c] = []);
+  windowDates.forEach(d => {
+    const row = byDate.get(d);
+    cols.forEach(c => { if (row[c] != null) sums[c].push(row[c]); });
+  });
+  const res = {};
+  cols.forEach(c => res[c] = sums[c].length ? sums[c].reduce((a,b)=>a+b,0)/sums[c].length : null);
+  res.CTR = (res['Показы'] && res['Показы'] > 0 && res['Переходы'] != null) ? res['Переходы']/res['Показы']*100 : null;
+  res['CR заказ'] = (res['Переходы'] && res['Переходы'] > 0 && res['Заказано'] != null) ? res['Заказано']/res['Переходы']*100 : null;
+  res.n_days = windowDates.length;
+  return res;
+}
+
+function metricsAfterDaily(byDate, dates, eventDate, nextEventDate) {
+  const idx = dates.indexOf(eventDate);
+  const endIdx = nextEventDate ? dates.indexOf(nextEventDate) : dates.length;
+  const windowDates = dates.slice(idx, endIdx < 0 ? dates.length : endIdx);
+  return windowDates.map(d => {
+    const row = byDate.get(d);
+    const shows = row['Показы'], clicks = row['Переходы'], orders = row['Заказано'];
+    return {
+      date: d,
+      Показы: shows ?? null, Переходы: clicks ?? null,
+      'Корзины реклама': row['Корзины реклама'] ?? null, 'Корзины органика': row['Корзины органика'] ?? null,
+      Заказано: orders ?? null,
+      'Заказы органика': row['Заказы органика'] ?? null, 'Заказы полки': row['Заказы полки'] ?? null,
+      'Заказы поиск': row['Заказы поиск'] ?? null, 'Заказы смешанная': row['Заказы смешанная'] ?? null,
+      'Ассоц. конверсии': row['Ассоц. конверсии'] ?? null,
+      'Расход РК': row['Расход РК'] ?? null, Цена: row['Цена'] ?? null,
+      Остаток: row['Остаток'] ?? null,
+      CTR: (shows && shows > 0 && clicks != null) ? clicks/shows*100 : null,
+      'CR заказ': (clicks && clicks > 0 && orders != null) ? orders/clicks*100 : null,
+    };
+  });
+}
+
+// ---------- 8. Full pipeline: fetch all sheets -> events + daily series ----------
+async function runPipeline(config, onProgress) {
+  const dateTo = config.dateTo || new Date().toISOString().slice(0, 10);
+  const allRecords = [];
+  for (const sheetName of config.sheetNames) {
+    onProgress && onProgress(`Загружаю лист «${sheetName}»…`);
+    const csvText = await fetchSheetCSV(config.spreadsheetId, sheetName);
+    const recs = parseSheet(csvText, sheetName, config.dateFrom, dateTo);
+    allRecords.push(...recs);
+  }
+
+  const wantedArtikuls = new Set(allRecords.map(r => r.Артикул).filter(Boolean));
+
+  let funnelByArtikul = new Map();
+  if (config.funnelSpreadsheetId && config.funnelSheetName) {
+    onProgress && onProgress(`Загружаю рекламную воронку (${wantedArtikuls.size} артикулов)…`);
+    try {
+      const funnelCsv = await fetchSheetCSV(config.funnelSpreadsheetId, config.funnelSheetName);
+      onProgress && onProgress('Обрабатываю воронку…');
+      funnelByArtikul = parseFunnelSheet(funnelCsv, config.dateFrom, dateTo, wantedArtikuls);
+    } catch (err) {
+      console.error('Funnel sheet load failed:', err);
+      onProgress && onProgress('Воронка не загрузилась, продолжаю без неё…');
+    }
+  }
+
+  onProgress && onProgress('Считаю события и метрики…');
+  const byArtikul = buildArtikulData(allRecords, funnelByArtikul);
+
+  const events = [];
+  const daily = {};
+  const artMeta = {};
+
+  byArtikul.forEach((entry, art) => {
+    const dates = [...entry.byDate.keys()].sort();
+    if (dates.length === 0) return;
+
+    artMeta[art] = {
+      tkan: entry.meta['Ткань'], cvet: normColor(entry.meta['цвет']), razmer: normSize(entry.meta['размер']),
+      rk: entry.meta['рк'], rating: toNum(entry.meta['Рейтинг склейки']), reviews: toNum(entry.meta['Кол-во отзывов']),
+    };
+
+    daily[art] = dates.map(d => {
+      const row = entry.byDate.get(d);
+      return { date: d, shows: row['Показы'] ?? null, clicks: row['Переходы'] ?? null,
+                cartAds: row['Корзины реклама'] ?? null, cartOrganic: row['Корзины органика'] ?? null,
+                orders: row['Заказано'] ?? null,
+                ordersShelf: row['Заказы полки'] ?? null, ordersSearch: row['Заказы поиск'] ?? null, ordersMixed: row['Заказы смешанная'] ?? null,
+                spend: row['Расход РК'] ?? null, price: row['Цена'] ?? null, stock: row['Остаток'] ?? null };
+    });
+
+    const evs = detectEvents(entry.byDate).sort((a,b) => a.Дата.localeCompare(b.Дата));
+    evs.forEach((ev, i) => {
+      const nextDate = i + 1 < evs.length ? evs[i+1].Дата : null;
+      const before = metricsBefore(entry.byDate, dates, ev.Дата, config.lookbackDays);
+      const after = metricsAfterDaily(entry.byDate, dates, ev.Дата, nextDate);
+      events.push({
+        artikul: art, tkan: artMeta[art].tkan, cvet: artMeta[art].cvet, razmer: artMeta[art].razmer,
+        rk: artMeta[art].rk, rating: artMeta[art].rating, reviews: artMeta[art].reviews,
+        type: ev.Тип, date: ev.Дата, desc: ev.Описание, before, after,
+      });
+    });
+  });
+
+  return { events, daily, artMeta, generatedAt: new Date().toISOString().slice(0,10) };
+}
+
+function normSize(s) { return s ? s.replace(/Х/g, 'х').trim() || null : null; }
+function normColor(c) {
+  if (!c) return null;
+  let s = c.replace(/_/g, '-').trim();
+  s = s.replace(/-\d+$/, '');
+  return s || null;
+}
+
+</script>
+<script>
+let DATA = null, EVENTS = null, DAILY = null, ART_META = null;
+
+
+const state = { tkan:'', razmer:'', cvet:'', rk:'', type:'all', search:'', dateFrom:'', dateTo:'', openArt:null };
+
+const TYPE_RU = {Цена:'Цена', 'Бюджет РК':'Бюджет РК', Комментарий:'Комментарий'};
+
+function fmtNum(v, dec=0){
+  if (v===null || v===undefined || Number.isNaN(v)) return '—';
+  return v.toLocaleString('ru-RU', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+function fmtDate(d){
+  const [y,m,day] = d.split('-');
+  return `${day}.${m}.${y}`;
+}
+
+function uniqueSorted(arr){
+  return [...new Set(arr.filter(x=>x))].sort((a,b)=>a.localeCompare(b,'ru'));
+}
+
+function populateSelect(id, values){
+  const sel = document.getElementById(id);
+  values.forEach(v=>{
+    const o = document.createElement('option');
+    o.value = v; o.textContent = v;
+    sel.appendChild(o);
+  });
+}
+
+function initFilters(){
+  populateSelect('f-tkan', uniqueSorted(EVENTS.map(e=>e.tkan)));
+  populateSelect('f-razmer', uniqueSorted(EVENTS.map(e=>e.razmer)));
+  populateSelect('f-cvet', uniqueSorted(EVENTS.map(e=>e.cvet)));
+  populateSelect('f-rk', uniqueSorted(EVENTS.map(e=>e.rk)));
+
+  document.getElementById('f-tkan').addEventListener('change', e=>{state.tkan=e.target.value; render();});
+  document.getElementById('f-razmer').addEventListener('change', e=>{state.razmer=e.target.value; render();});
+  document.getElementById('f-cvet').addEventListener('change', e=>{state.cvet=e.target.value; render();});
+  document.getElementById('f-rk').addEventListener('change', e=>{state.rk=e.target.value; render();});
+  document.getElementById('f-search').addEventListener('input', e=>{state.search=e.target.value.trim().toLowerCase(); render();});
+  document.getElementById('f-dateFrom').addEventListener('change', e=>{state.dateFrom=e.target.value; render();});
+  document.getElementById('f-dateTo').addEventListener('change', e=>{state.dateTo=e.target.value; render();});
+
+  document.getElementById('typeChips').addEventListener('click', e=>{
+    const chip = e.target.closest('.chip');
+    if(!chip) return;
+    state.type = chip.dataset.type;
+    [...document.querySelectorAll('.chip')].forEach(c=>c.classList.toggle('active', c===chip));
+    render();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    state.tkan=''; state.razmer=''; state.cvet=''; state.rk=''; state.type='all'; state.search=''; state.dateFrom=''; state.dateTo='';
+    document.getElementById('f-tkan').value='';
+    document.getElementById('f-razmer').value='';
+    document.getElementById('f-cvet').value='';
+    document.getElementById('f-rk').value='';
+    document.getElementById('f-search').value='';
+    document.getElementById('f-dateFrom').value='';
+    document.getElementById('f-dateTo').value='';
+    [...document.querySelectorAll('.chip')].forEach(c=>c.classList.toggle('active', c.dataset.type==='all'));
+    render();
+  });
+}
+
+function filteredEvents(){
+  return EVENTS.filter(e=>{
+    if(state.tkan && e.tkan!==state.tkan) return false;
+    if(state.razmer && e.razmer!==state.razmer) return false;
+    if(state.cvet && e.cvet!==state.cvet) return false;
+    if(state.rk && e.rk!==state.rk) return false;
+    if(state.type!=='all' && e.type!==state.type) return false;
+    if(state.search && !e.artikul.toLowerCase().includes(state.search)) return false;
+    if(state.dateFrom && e.date < state.dateFrom) return false;
+    if(state.dateTo && e.date > state.dateTo) return false;
+    return true;
+  }).sort((a,b)=> b.date.localeCompare(a.date));
+}
+
+function deltaSpan(before, after, decimals=0, invert=false){
+  if(before===null || before===undefined || after===null || after===undefined || before===0) return '';
+  const pct = ((after-before)/Math.abs(before))*100;
+  const cls = Math.abs(pct)<3 ? 'flat' : (pct>0 ? (invert?'down':'up') : (invert?'up':'down'));
+  const sign = pct>0?'+':'';
+  return `<span class="delta ${cls}">${sign}${pct.toFixed(0)}%</span>`;
+}
+
+function renderStatPills(){
+  const evs = filteredEvents();
+  const arts = new Set(evs.map(e=>e.artikul)).size;
+  const byType = {Цена:0,'Бюджет РК':0,Комментарий:0};
+  evs.forEach(e=>byType[e.type]++);
+  document.getElementById('statPills').innerHTML = `
+    <div class="pill">Событий <b>${evs.length}</b></div>
+    <div class="pill">Товаров <b>${arts}</b></div>
+    <div class="pill" style="color:var(--price)">Цена <b style="color:var(--price)">${byType['Цена']}</b></div>
+    <div class="pill" style="color:var(--budget)">Бюджет <b style="color:var(--budget)">${byType['Бюджет РК']}</b></div>
+    <div class="pill" style="color:var(--comment)">Коммент. <b style="color:var(--comment)">${byType['Комментарий']}</b></div>
+  `;
+}
+
+function eventCardHTML(e, compact=false){
+  const after0 = e.after && e.after[0];
+  const metrics = ['Показы','Переходы','Расход РК','Заказано'];
+  const keys = {Показы:'Показы', Переходы:'Переходы', 'Расход РК':'Расход РК', Заказано:'Заказано'};
+  let metricsHTML = '';
+  if(after0){
+    metricsHTML = metrics.map(m=>{
+      const b = e.before[m], a = after0[m];
+      return `<div class="ec-metric"><span class="lbl">${m}</span><span class="val">${fmtNum(b,0)} → ${fmtNum(a,0)}</span>${deltaSpan(b,a)}</div>`;
+    }).join('');
+  } else {
+    metricsHTML = metrics.map(m=>`<div class="ec-metric"><span class="lbl">${m} (до)</span><span class="val">${fmtNum(e.before[m],0)}</span></div>`).join('');
+  }
+  return `
+    <div class="event-card" data-type="${e.type}" data-artikul="${e.artikul}">
+      <div class="ec-top">
+        <div>
+          <span class="ec-type-badge" data-type="${e.type}">${TYPE_RU[e.type]}</span>
+          <div class="ec-art">${e.artikul}</div>
+          <div class="ec-tags"><span>${e.tkan}</span><span>${e.razmer||''}</span><span>${e.cvet||''}</span><span>${e.rk||''}</span></div>
+        </div>
+        <div class="ec-date">${fmtDate(e.date)}</div>
+      </div>
+      <div class="ec-desc">${e.desc}</div>
+      <div class="ec-metrics">${metricsHTML}</div>
+    </div>
+  `;
+}
+
+function renderList(){
+  const evs = filteredEvents();
+  const list = document.getElementById('colList');
+  if(evs.length===0){
+    list.innerHTML = `<div class="empty-state">Нет событий по выбранным фильтрам</div>`;
+    return;
+  }
+  list.innerHTML = `<div class="list-meta">${evs.length} событий, отсортировано по дате (новые сверху)</div>` +
+    evs.map(e=>eventCardHTML(e)).join('');
+
+  list.querySelectorAll('.event-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      openDetail(card.dataset.artikul);
+    });
+  });
+}
+
+// ---------- detail panel with chart ----------
+let activeMetrics = ['shows','clicks'];
+const METRIC_DEFS = {
+  shows:{label:'Показы', color:'#5b8def'},
+  clicks:{label:'Переходы', color:'#5fb88a'},
+  cartAds:{label:'Корзины (рк)', color:'#b98ae0'},
+  cartOrganic:{label:'Корзины (орг.)', color:'#7a5ea8'},
+  orders:{label:'Заказано', color:'#e2645e'},
+  ordersShelf:{label:'—полки', color:'#e0a64a'},
+  ordersSearch:{label:'—поиск', color:'#4ab3a8'},
+  ordersMixed:{label:'—смешанная', color:'#c97f3d'},
+  spend:{label:'Расход РК', color:'#9aa0ab'},
+  price:{label:'Цена', color:'#8b92a3'},
+};
+
+function openDetail(artikul){
+  state.openArt = artikul;
+  const panel = document.getElementById('colDetail');
+  panel.classList.add('open');
+
+  const meta = ART_META[artikul] || {};
+  const artEvents = EVENTS.filter(e=>e.artikul===artikul).sort((a,b)=>a.date.localeCompare(b.date));
+
+  panel.innerHTML = `
+    <div class="detail-head">
+      <button class="detail-close" id="closeDetail">✕</button>
+      <div class="detail-title">${artikul}</div>
+      <div class="detail-sub">${meta.tkan||''} · ${meta.razmer||''} · ${meta.cvet||''} · ${meta.rk||''} · рейтинг ${meta.rating??'—'} (${meta.reviews??'—'} отз.)</div>
+    </div>
+    <div class="detail-body">
+      <div class="detail-section-title">Динамика</div>
+      <div class="metric-toggle" id="metricToggle">
+        ${Object.entries(METRIC_DEFS).map(([k,v])=>`<button data-m="${k}" class="${activeMetrics.includes(k)?'active':''}">${v.label}</button>`).join('')}
+      </div>
+      <div class="chart-wrap" style="position:relative;">
+        <svg id="chartSvg" width="100%" viewBox="0 0 440 200" preserveAspectRatio="none"></svg>
+        <div id="chartTooltip" class="chart-tooltip" style="display:none;"></div>
+      </div>
+
+      <div class="detail-section-title">События по этому товару (${artEvents.length})</div>
+      <div class="det-events-list">
+        ${artEvents.map(e=>eventDetailCardHTML(e)).join('')}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('closeDetail').addEventListener('click', closeDetail);
+  document.getElementById('metricToggle').addEventListener('click', e=>{
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    const m = btn.dataset.m;
+    if(activeMetrics.includes(m)){
+      if(activeMetrics.length>1) activeMetrics = activeMetrics.filter(x=>x!==m);
+    } else {
+      if(activeMetrics.length>=3) activeMetrics.shift();
+      activeMetrics.push(m);
+    }
+    drawChart(artikul, artEvents);
+    [...panel.querySelectorAll('.metric-toggle button')].forEach(b=>b.classList.toggle('active', activeMetrics.includes(b.dataset.m)));
+  });
+
+  drawChart(artikul, artEvents);
+}
+
+function eventDetailCardHTML(e){
+  const rows = e.after.map((d,i)=>`
+    <tr>
+      <td>+${i+1} (${fmtDate(d.date).slice(0,5)})</td>
+      <td>${fmtNum(d['Показы'])}</td><td>${fmtNum(d['Переходы'])}</td>
+      <td>${fmtNum(d['Корзины реклама'])}</td><td>${fmtNum(d['Корзины органика'])}</td>
+      <td>${fmtNum(d['Расход РК'])}</td>
+      <td><b>${fmtNum(d['Заказано'])}</b></td>
+      <td>${fmtNum(d['Заказы полки'])}</td><td>${fmtNum(d['Заказы поиск'])}</td><td>${fmtNum(d['Заказы смешанная'])}</td><td>${fmtNum(d['Заказы органика'])}</td>
+    </tr>
+  `).join('');
+  return `
+    <div class="event-card" data-type="${e.type}" style="cursor:default;">
+      <div class="ec-top">
+        <div>
+          <span class="ec-type-badge" data-type="${e.type}">${TYPE_RU[e.type]}</span>
+          <div class="ec-desc" style="margin:4px 0 0;">${e.desc}</div>
+        </div>
+        <div class="ec-date">${fmtDate(e.date)}</div>
+      </div>
+      <div style="overflow-x:auto;">
+      <table class="det-after-table">
+        <tr><th>День</th><th>Показы</th><th>Перех.</th><th>Корз.рк</th><th>Корз.орг</th><th>Расход</th><th>Заказ</th><th>—полки</th><th>—поиск</th><th>—смеш.</th><th>—орг.</th></tr>
+        <tr class="before-row">
+          <td>До (ср. ${e.before.n_days}д)</td>
+          <td>${fmtNum(e.before['Показы'])}</td><td>${fmtNum(e.before['Переходы'])}</td>
+          <td>${fmtNum(e.before['Корзины реклама'])}</td><td>${fmtNum(e.before['Корзины органика'])}</td>
+          <td>${fmtNum(e.before['Расход РК'])}</td>
+          <td><b>${fmtNum(e.before['Заказано'])}</b></td>
+          <td>${fmtNum(e.before['Заказы полки'])}</td><td>${fmtNum(e.before['Заказы поиск'])}</td><td>${fmtNum(e.before['Заказы смешанная'])}</td><td>${fmtNum(e.before['Заказы органика'])}</td>
+        </tr>
+        ${rows}
+      </table>
+      </div>
+    </div>
+  `;
+}
+
+function closeDetail(){
+  document.getElementById('colDetail').classList.remove('open');
+  state.openArt = null;
+}
+
+function drawChart(artikul, artEvents){
+  const data = DAILY[artikul] || [];
+  const svg = document.getElementById('chartSvg');
+  const tooltip = document.getElementById('chartTooltip');
+  if(!svg || data.length===0){ if(svg) svg.innerHTML=''; return; }
+
+  const W=440, H=200, padL=36, padR=10, padT=10, padB=22;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+
+  const dates = data.map(d=>d.date);
+  const xScale = i => padL + (i/(Math.max(dates.length-1,1)))*plotW;
+
+  let svgEls = [];
+  const seriesScales = {}; // mKey -> {min,max,yScale}
+
+  // grid
+  for(let gy=0; gy<=4; gy++){
+    const y = padT + gy*(plotH/4);
+    svgEls.push(`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#2a2f3a" stroke-width="1"/>`);
+  }
+
+  activeMetrics.forEach(mKey=>{
+    const vals = data.map(d=>d[mKey]);
+    const valid = vals.filter(v=>v!==null && v!==undefined);
+    if(valid.length===0) return;
+    const max = Math.max(...valid), min = Math.min(0,...valid);
+    const yScale = v => padT + plotH - ((v-min)/((max-min)||1))*plotH;
+    seriesScales[mKey] = yScale;
+
+    let path = '';
+    let started = false;
+    vals.forEach((v,i)=>{
+      if(v===null || v===undefined){ started=false; return; }
+      const x=xScale(i), y=yScale(v);
+      path += (started? 'L':'M') + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+      started = true;
+    });
+    const color = METRIC_DEFS[mKey].color;
+    svgEls.push(`<path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`);
+    vals.forEach((v,i)=>{
+      if(v===null||v===undefined) return;
+      svgEls.push(`<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(v).toFixed(1)}" r="2" fill="${color}"/>`);
+    });
+  });
+
+  // event markers
+  artEvents.forEach(e=>{
+    const idx = dates.indexOf(e.date);
+    if(idx<0) return;
+    const x = xScale(idx);
+    const color = e.type==='Цена'? '#e0a64a' : e.type==='Бюджет РК' ? '#5b8def' : '#5fb88a';
+    svgEls.push(`<line x1="${x.toFixed(1)}" y1="${padT}" x2="${x.toFixed(1)}" y2="${H-padB}" stroke="${color}" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>`);
+  });
+
+  // invisible hover zones, one per data point
+  const hoverW = plotW / Math.max(dates.length,1);
+  dates.forEach((d,i)=>{
+    const x = xScale(i);
+    svgEls.push(`<rect class="hover-zone" data-idx="${i}" x="${(x-hoverW/2).toFixed(1)}" y="${padT}" width="${hoverW.toFixed(1)}" height="${plotH}" fill="transparent" style="cursor:crosshair;"/>`);
+  });
+
+  // x labels (first, mid, last)
+  [0, Math.floor((dates.length-1)/2), dates.length-1].forEach(i=>{
+    if(i<0||i>=dates.length) return;
+    const x = xScale(i);
+    svgEls.push(`<text x="${x.toFixed(1)}" y="${H-6}" font-size="9" fill="#5b6172" text-anchor="middle" font-family="monospace">${fmtDate(dates[i]).slice(0,5)}</text>`);
+  });
+
+  // vertical hover indicator line (hidden by default)
+  svgEls.push(`<line id="hoverLine" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#8b92a3" stroke-width="1" opacity="0" />`);
+
+  svg.innerHTML = svgEls.join('');
+
+  // hover interactivity
+  const hoverLine = svg.querySelector('#hoverLine');
+  svg.querySelectorAll('.hover-zone').forEach(zone=>{
+    zone.addEventListener('mouseenter', ()=> showTooltip(zone));
+    zone.addEventListener('mousemove', (ev)=> positionTooltip(ev));
+    zone.addEventListener('mouseleave', hideTooltip);
+  });
+
+  function showTooltip(zone){
+    const i = parseInt(zone.dataset.idx, 10);
+    const d = data[i];
+    if(!d) return;
+    const x = xScale(i);
+    hoverLine.setAttribute('x1', x.toFixed(1));
+    hoverLine.setAttribute('x2', x.toFixed(1));
+    hoverLine.setAttribute('opacity', '0.5');
+
+    const rows = activeMetrics.map(mKey=>{
+      const v = d[mKey];
+      if(v===null||v===undefined) return '';
+      const color = METRIC_DEFS[mKey].color;
+      const decimals = (mKey==='price') ? 0 : (Number.isInteger(v) ? 0 : 1);
+      return `<div class="tt-row"><span class="tt-dot" style="background:${color}"></span>${METRIC_DEFS[mKey].label}<span class="tt-val">${fmtNum(v, decimals)}</span></div>`;
+    }).join('');
+    tooltip.innerHTML = `<div class="tt-date">${fmtDate(d.date)}</div>${rows}`;
+    tooltip.style.display = 'block';
+  }
+  function positionTooltip(ev){
+    const wrapRect = tooltip.parentElement.getBoundingClientRect();
+    let left = ev.clientX - wrapRect.left + 14;
+    let top = ev.clientY - wrapRect.top - 10;
+    if(left + tooltip.offsetWidth > wrapRect.width) left = ev.clientX - wrapRect.left - tooltip.offsetWidth - 14;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  }
+  function hideTooltip(){
+    tooltip.style.display = 'none';
+    hoverLine.setAttribute('opacity', '0');
+  }
+}
+
+function render(){
+  renderStatPills();
+  renderList();
+}
+
+function initTabs(){
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t===tab));
+      const isAnalysis = tab.dataset.tab === 'analysis';
+      document.getElementById('eventFilters').style.display = isAnalysis ? 'none' : 'flex';
+      document.getElementById('eventsView').style.display = isAnalysis ? 'none' : 'flex';
+      document.getElementById('analysisView').style.display = isAnalysis ? 'block' : 'none';
+      if(isAnalysis) renderAnalysis();
+    });
+  });
+}
+
+function showLoading(text, sub){
+  document.getElementById('loadingScreen').style.display = 'flex';
+  document.getElementById('errorScreen').style.display = 'none';
+  document.querySelector('.app').style.display = 'none';
+  if(text) document.getElementById('loadingText').textContent = text;
+  if(sub) document.getElementById('loadingSub').textContent = sub;
+}
+
+function showError(text, sub){
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('errorScreen').style.display = 'flex';
+  document.querySelector('.app').style.display = 'none';
+  document.getElementById('errorText').textContent = text;
+  document.getElementById('errorSub').textContent = sub || '';
+}
+
+function showApp(){
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('errorScreen').style.display = 'none';
+  document.querySelector('.app').style.display = 'flex';
+}
+
+// ====================== ANALYSIS TAB ======================
+const PRICE_ORDER_THRESHOLD = 1;     // заказов/день — порог значимого изменения после цены
+const RK_CR_THRESHOLD = 1;           // п.п. CR заказ — порог значимого изменения после бюджета
+
+function parsePriceChange(desc){
+  // "7 712 → 6 420" -> {before, after}
+  const m = (desc||'').match(/^([\d\s]+)\s*→\s*([\d\s]+)/);
+  if(!m) return null;
+  const toNum = s => parseFloat(s.replace(/\s/g,''));
+  return { before: toNum(m[1]), after: toNum(m[2]) };
+}
+
+function avgOrdersPerDay(rows){
+  const vals = rows.map(r=>r['Заказано']).filter(v=>v!=null);
+  return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+}
+
+function median(arr){
+  const a = arr.filter(v=>v!=null).slice().sort((x,y)=>x-y);
+  if(a.length===0) return null;
+  const mid = Math.floor(a.length/2);
+  return a.length%2 ? a[mid] : (a[mid-1]+a[mid])/2;
+}
+
+// ---------- 1. Анализ по цене: последнее событие "Цена" на товар, рост повышение ----------
+function analyzePriceEvents(){
+  const result = [];
+  Object.keys(ART_META).forEach(art=>{
+    const artEvents = EVENTS.filter(e=>e.artikul===art && e.type==='Цена').sort((a,b)=>a.date.localeCompare(b.date));
+    if(artEvents.length===0) return;
+    const last = artEvents[artEvents.length-1];
+    const priceChange = parsePriceChange(last.desc);
+    if(!priceChange || !(priceChange.after > priceChange.before)) return; // нас интересует именно повышение
+
+    const beforeOrders = last.before['Заказано'];
+    const afterOrders = avgOrdersPerDay(last.after);
+    if(beforeOrders==null || afterOrders==null) return;
+
+    const diff = afterOrders - beforeOrders;
+    let status = 'flat';
+    if(diff >= PRICE_ORDER_THRESHOLD) status = 'up';
+    else if(diff <= -PRICE_ORDER_THRESHOLD) status = 'down';
+
+    result.push({
+      artikul: art, tkan: ART_META[art].tkan, cvet: ART_META[art].cvet, razmer: ART_META[art].razmer,
+      date: last.date, priceBefore: priceChange.before, priceAfter: priceChange.after,
+      ordersBefore: beforeOrders, ordersAfter: afterOrders, diff, status,
+    });
+  });
+  return result;
+}
+
+// ---------- 2. Общая конверсия РК (медиана по ткани, без привязки к событиям) ----------
+function analyzeOverallConversion(){
+  // считаем средний CTR и CR заказ по daily для каждого товара
+  const perArt = {};
+  Object.keys(DAILY).forEach(art=>{
+    const rows = DAILY[art].filter(d=>d.shows!=null && d.shows>0);
+    if(rows.length===0) return;
+    const totalShows = rows.reduce((s,d)=>s+(d.shows||0),0);
+    const totalClicks = rows.reduce((s,d)=>s+(d.clicks||0),0);
+    const totalOrders = rows.reduce((s,d)=>s+(d.orders||0),0);
+    const ctr = totalShows>0 ? totalClicks/totalShows*100 : null;
+    const cr = totalClicks>0 ? totalOrders/totalClicks*100 : null;
+    perArt[art] = { tkan: ART_META[art]?.tkan, cvet: ART_META[art]?.cvet, razmer: ART_META[art]?.razmer, ctr, cr, shows: totalShows, clicks: totalClicks, orders: totalOrders };
+  });
+
+  // медиана по ткани
+  const byTkan = {};
+  Object.values(perArt).forEach(a=>{
+    if(!a.tkan) return;
+    (byTkan[a.tkan] = byTkan[a.tkan]||{ctrs:[],crs:[]}).ctrs.push(a.ctr);
+    byTkan[a.tkan].crs.push(a.cr);
+  });
+  const medianByTkan = {};
+  Object.entries(byTkan).forEach(([tkan,v])=>{
+    medianByTkan[tkan] = { ctrMed: median(v.ctrs), crMed: median(v.crs) };
+  });
+
+  const result = Object.entries(perArt).map(([art,a])=>{
+    const med = medianByTkan[a.tkan] || {};
+    const ctrStatus = (a.ctr!=null && med.ctrMed!=null) ? (a.ctr >= med.ctrMed ? 'good' : 'bad') : 'neutral';
+    const crStatus = (a.cr!=null && med.crMed!=null) ? (a.cr >= med.crMed ? 'good' : 'bad') : 'neutral';
+    return { artikul: art, ...a, ctrMed: med.ctrMed, crMed: med.crMed, ctrStatus, crStatus };
+  });
+  return { result, medianByTkan };
+}
+
+// ---------- 3. Конверсия после последнего изменения бюджета РК ----------
+function analyzeBudgetEvents(){
+  const result = [];
+  Object.keys(ART_META).forEach(art=>{
+    const artEvents = EVENTS.filter(e=>e.artikul===art && e.type==='Бюджет РК').sort((a,b)=>a.date.localeCompare(b.date));
+    if(artEvents.length===0) return;
+    const last = artEvents[artEvents.length-1];
+    const crBefore = last.before['CR заказ'];
+    const afterRows = last.after.filter(r=>r['CR заказ']!=null);
+    const crAfter = afterRows.length ? afterRows.reduce((s,r)=>s+r['CR заказ'],0)/afterRows.length : null;
+    if(crBefore==null || crAfter==null) return;
+
+    const diff = crAfter - crBefore;
+    let status = 'flat';
+    if(diff >= RK_CR_THRESHOLD) status = 'up';
+    else if(diff <= -RK_CR_THRESHOLD) status = 'down';
+
+    result.push({
+      artikul: art, tkan: ART_META[art].tkan, cvet: ART_META[art].cvet, razmer: ART_META[art].razmer,
+      date: last.date, desc: last.desc, crBefore, crAfter, diff, status,
+    });
+  });
+  return result;
+}
+
+function statusBadge(status, labels){
+  const map = labels || { up:'Рост', down:'Падение', flat:'Без изменений', good:'Хорошо', bad:'Плохо', neutral:'Нет данных' };
+  const cls = (status==='up'||status==='good') ? 'good' : (status==='down'||status==='bad') ? 'bad' : 'neutral';
+  return `<span class="a-badge ${cls}">${map[status]||status}</span>`;
+}
+
+function renderAnalysis(){
+  const view = document.getElementById('analysisView');
+
+  const priceData = analyzePriceEvents();
+  const priceUp = priceData.filter(r=>r.status==='up').length;
+  const priceDown = priceData.filter(r=>r.status==='down').length;
+  const priceFlat = priceData.filter(r=>r.status==='flat').length;
+
+  const { result: convData } = analyzeOverallConversion();
+  const crGood = convData.filter(r=>r.crStatus==='good').length;
+  const crBad = convData.filter(r=>r.crStatus==='bad').length;
+
+  const budgetData = analyzeBudgetEvents();
+  const budgetUp = budgetData.filter(r=>r.status==='up').length;
+  const budgetDown = budgetData.filter(r=>r.status==='down').length;
+  const budgetFlat = budgetData.filter(r=>r.status==='flat').length;
+
+  view.innerHTML = `
+    <div class="analysis-section">
+      <h2>Повышение цены — что стало с заказами</h2>
+      <div class="a-sub">По последнему повышению цены каждого товара. Сравнение среднего заказов/день: до (7 дн.) vs после. Порог значимости — ${PRICE_ORDER_THRESHOLD} заказ/день.</div>
+      <div class="analysis-cards">
+        <div class="a-card bad"><div class="a-num">${priceDown}</div><div class="a-lbl">Заказы упали</div></div>
+        <div class="a-card good"><div class="a-num">${priceUp}</div><div class="a-lbl">Заказы выросли</div></div>
+        <div class="a-card neutral"><div class="a-num">${priceFlat}</div><div class="a-lbl">Без изменений</div></div>
+      </div>
+      <div class="a-table-wrap"><table class="a-table" id="priceTable"></table></div>
+    </div>
+
+    <div class="analysis-section">
+      <h2>Конверсия РК — относительно медианы по ткани</h2>
+      <div class="a-sub">CTR и CR заказ каждого товара за весь период сравниваются с медианой среди товаров той же ткани.</div>
+      <div class="analysis-cards">
+        <div class="a-card good"><div class="a-num">${crGood}</div><div class="a-lbl">CR выше медианы</div></div>
+        <div class="a-card bad"><div class="a-num">${crBad}</div><div class="a-lbl">CR ниже медианы</div></div>
+      </div>
+      <div class="a-table-wrap"><table class="a-table" id="convTable"></table></div>
+    </div>
+
+    <div class="analysis-section">
+      <h2>После последнего изменения бюджета РК</h2>
+      <div class="a-sub">CR заказ до (7 дн.) vs после последнего изменения бюджета. Порог значимости — ${RK_CR_THRESHOLD} п.п.</div>
+      <div class="analysis-cards">
+        <div class="a-card bad"><div class="a-num">${budgetDown}</div><div class="a-lbl">Конверсия упала</div></div>
+        <div class="a-card good"><div class="a-num">${budgetUp}</div><div class="a-lbl">Конверсия выросла</div></div>
+        <div class="a-card neutral"><div class="a-num">${budgetFlat}</div><div class="a-lbl">Без изменений</div></div>
+      </div>
+      <div class="a-table-wrap"><table class="a-table" id="budgetTable"></table></div>
+    </div>
+  `;
+
+  renderPriceTable(priceData);
+  renderConvTable(convData);
+  renderBudgetTable(budgetData);
+}
+
+function renderPriceTable(data){
+  const sorted = data.slice().sort((a,b)=>a.diff-b.diff);
+  const rows = sorted.map(r=>`
+    <tr>
+      <td>${r.artikul}</td><td>${r.tkan}</td><td>${r.razmer||''}</td><td>${r.cvet||''}</td>
+      <td class="num">${fmtDate(r.date)}</td>
+      <td class="num">${fmtNum(r.priceBefore)} → ${fmtNum(r.priceAfter)}</td>
+      <td class="num">${fmtNum(r.ordersBefore,2)}</td><td class="num">${fmtNum(r.ordersAfter,2)}</td>
+      <td class="num">${r.diff>0?'+':''}${fmtNum(r.diff,2)}</td>
+      <td>${statusBadge(r.status)}</td>
+    </tr>`).join('');
+  document.getElementById('priceTable').innerHTML = `
+    <tr><th>Артикул</th><th>Ткань</th><th>Размер</th><th>Цвет</th><th class="num">Дата</th><th class="num">Цена</th><th class="num">Заказ/дн до</th><th class="num">Заказ/дн после</th><th class="num">Δ</th><th>Статус</th></tr>
+    ${rows || '<tr><td colspan="10" style="text-align:center;color:var(--text-faint);padding:20px;">Нет данных</td></tr>'}
+  `;
+}
+
+function renderConvTable(data){
+  const sorted = data.slice().sort((a,b)=>(b.cr??-1)-(a.cr??-1));
+  const rows = sorted.map(r=>`
+    <tr>
+      <td>${r.artikul}</td><td>${r.tkan||''}</td><td>${r.razmer||''}</td><td>${r.cvet||''}</td>
+      <td class="num">${fmtNum(r.ctr,2)}%</td><td class="num">${fmtNum(r.ctrMed,2)}%</td>${statusCell(r.ctrStatus)}
+      <td class="num">${fmtNum(r.cr,2)}%</td><td class="num">${fmtNum(r.crMed,2)}%</td>${statusCell(r.crStatus)}
+    </tr>`).join('');
+  document.getElementById('convTable').innerHTML = `
+    <tr><th>Артикул</th><th>Ткань</th><th>Размер</th><th>Цвет</th><th class="num">CTR</th><th class="num">Медиана CTR</th><th>CTR</th><th class="num">CR заказ</th><th class="num">Медиана CR</th><th>CR</th></tr>
+    ${rows || '<tr><td colspan="10" style="text-align:center;color:var(--text-faint);padding:20px;">Нет данных</td></tr>'}
+  `;
+}
+function statusCell(status){ return `<td>${statusBadge(status)}</td>`; }
+
+function renderBudgetTable(data){
+  const sorted = data.slice().sort((a,b)=>a.diff-b.diff);
+  const rows = sorted.map(r=>`
+    <tr>
+      <td>${r.artikul}</td><td>${r.tkan}</td><td>${r.razmer||''}</td><td>${r.cvet||''}</td>
+      <td class="num">${fmtDate(r.date)}</td><td>${r.desc}</td>
+      <td class="num">${fmtNum(r.crBefore,2)}%</td><td class="num">${fmtNum(r.crAfter,2)}%</td>
+      <td class="num">${r.diff>0?'+':''}${fmtNum(r.diff,2)} п.п.</td>
+      <td>${statusBadge(r.status)}</td>
+    </tr>`).join('');
+  document.getElementById('budgetTable').innerHTML = `
+    <tr><th>Артикул</th><th>Ткань</th><th>Размер</th><th>Цвет</th><th class="num">Дата</th><th>Изменение</th><th class="num">CR до</th><th class="num">CR после</th><th class="num">Δ</th><th>Статус</th></tr>
+    ${rows || '<tr><td colspan="10" style="text-align:center;color:var(--text-faint);padding:20px;">Нет данных</td></tr>'}
+  `;
+}
+
+
+async function loadData(){
+  showLoading('Подключаюсь к Google Таблице…', '');
+  try{
+    DATA = await runPipeline(PIPELINE_CONFIG, (msg) => {
+      document.getElementById('loadingText').textContent = msg;
+    });
+    EVENTS = DATA.events;
+    DAILY = DATA.daily;
+    ART_META = DATA.artMeta;
+
+    if(EVENTS.length === 0){
+      showError('Данные загрузились, но событий не найдено', 'Проверьте период дат и названия листов в настройках.');
+      return;
+    }
+
+    const dates = Object.values(DAILY).flat().map(d=>d.date).sort();
+    document.getElementById('dateFrom').textContent = dates.length? fmtDate(dates[0]) : '—';
+    document.getElementById('dateTo').textContent = dates.length? fmtDate(dates[dates.length-1]) : '—';
+    initFilters();
+    initTabs();
+    render();
+    showApp();
+  } catch(err){
+    console.error(err);
+    showError('Не удалось загрузить данные из Google Таблицы', err.message || String(err));
+  }
+}
+
+document.getElementById('retryBtn').addEventListener('click', loadData);
+document.getElementById('refreshBtn').addEventListener('click', loadData);
+
+loadData();
+</script>
+
+</body>
+</html>
