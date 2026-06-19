@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Анализ действий — до/после</title>
+<style>
+:root{
+  --bg:#0f1115;
+  --panel:#161922;
+  --panel2:#1d2129;
+  --border:#2a2f3a;
+  --text:#e7e9ee;
+  --text-dim:#8b92a3;
+  --text-faint:#5b6172;
+  --accent:#5b8def;
+  --price:#e0a64a;
+  --budget:#5b8def;
+  --comment:#5fb88a;
+  --up:#5fb88a;
+  --down:#e2645e;
+  --mono: 'SF Mono', 'Consolas', 'Menlo', monospace;
+  --sans: -apple-system, 'Segoe UI', Arial, sans-serif;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--sans); font-size:14px; line-height:1.4;
+}
+.app{ display:flex; flex-direction:column; min-height:100vh; }
+
+.loading-screen, .error-screen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+}
+.loading-box{ text-align:center; max-width:380px; padding:24px; }
+.loading-spinner{
+  width:34px; height:34px; border:3px solid var(--border); border-top-color:var(--accent);
+  border-radius:50%; margin:0 auto 18px; animation:spin 0.9s linear infinite;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.loading-text{ font-size:14.5px; color:var(--text); margin-bottom:6px; }
+.loading-sub{ font-size:12.5px; color:var(--text-faint); }
+.error-icon{ font-size:28px; color:var(--down); margin-bottom:10px; }
+.retry-btn{
+  margin-top:16px; background:var(--accent); color:#0f1115; border:none; border-radius:7px;
+  padding:9px 20px; font-size:13px; font-weight:600; cursor:pointer;
+}
+.retry-btn:hover{ opacity:0.9; }
+
+/* ---------- header ---------- */
+header{
+  padding:18px 24px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  flex-wrap:wrap; background:var(--panel);
+}
+header h1{ font-size:17px; margin:0; font-weight:600; letter-spacing:-0.01em; }
+header .sub{ color:var(--text-dim); font-size:12.5px; margin-top:2px; }
+.stat-pills{ display:flex; gap:10px; flex-wrap:wrap; }
+.pill{
+  background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+  padding:7px 12px; font-size:12px; color:var(--text-dim); display:flex; gap:6px; align-items:baseline;
+}
+.pill b{ color:var(--text); font-size:14px; font-family:var(--mono); }
+
+/* ---------- filters ---------- */
+.filters{
+  padding:14px 24px; border-bottom:1px solid var(--border);
+  display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:var(--panel);
+}
+.filters label{ font-size:11.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; margin-right:6px;}
+.filt-group{ display:flex; align-items:center; gap:6px; }
+select, .search-box{
+  background:var(--panel2); border:1px solid var(--border); color:var(--text);
+  border-radius:7px; padding:7px 10px; font-size:13px; font-family:var(--sans);
+  outline:none;
+}
+select:hover, .search-box:hover{ border-color:#3a4150; }
+select:focus, .search-box:focus{ border-color:var(--accent); }
+.search-box{ width:220px; }
+input[type="date"]{ color-scheme: dark; }
+input[type="date"]::-webkit-calendar-picker-indicator{ filter: invert(0.6); cursor:pointer; }
+.chip-row{ display:flex; gap:6px; }
+.chip{
+  border:1px solid var(--border); background:var(--panel2); color:var(--text-dim);
+  border-radius:20px; padding:6px 13px; font-size:12.5px; cursor:pointer; user-select:none;
+  transition:all .12s;
+}
+.chip:hover{ border-color:#3a4150; color:var(--text);}
+.chip.active{ color:#0f1115; font-weight:600; border-color:transparent; }
+.chip.active[data-type="Цена"]{ background:var(--price); }
+.chip.active[data-type="Бюджет РК"]{ background:var(--budget); }
+.chip.active[data-type="Комментарий"]{ background:var(--comment); }
+.chip.active[data-type="all"]{ background:var(--text); }
+.reset-btn{
+  margin-left:auto; background:none; border:1px solid var(--border); color:var(--text-dim);
+  border-radius:7px; padding:7px 12px; font-size:12.5px; cursor:pointer;
+}
+.reset-btn:hover{ color:var(--text); border-color:#3a4150; }
+
+/* ---------- body layout ---------- */
+.body-grid{ display:flex; flex:1; min-height:0; }
+.col-list{ flex:1; min-width:0; overflow-y:auto; padding:18px 24px; }
+.col-detail{
+  width:480px; flex-shrink:0; border-left:1px solid var(--border); background:var(--panel);
+  overflow-y:auto; display:none;
+}
+.col-detail.open{ display:block; }
+
+.list-meta{ color:var(--text-faint); font-size:12px; margin-bottom:12px; }
+
+/* ---------- event cards ---------- */
+.event-card{
+  background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  margin-bottom:10px; padding:14px 16px; cursor:pointer; transition:border-color .12s, transform .08s;
+  border-left:3px solid var(--border);
+}
+.event-card:hover{ border-color:#3a4150; }
+.event-card[data-type="Цена"]{ border-left-color:var(--price); }
+.event-card[data-type="Бюджет РК"]{ border-left-color:var(--budget); }
+.event-card[data-type="Комментарий"]{ border-left-color:var(--comment); }
+
+.ec-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.ec-art{ font-weight:600; font-size:13.5px; }
+.ec-tags{ color:var(--text-faint); font-size:11.5px; margin-top:3px; }
+.ec-tags span{ margin-right:8px; }
+.ec-date{ color:var(--text-dim); font-size:12px; font-family:var(--mono); white-space:nowrap; }
+.ec-type-badge{
+  display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+  padding:2px 7px; border-radius:4px; margin-bottom:6px;
+}
+.ec-type-badge[data-type="Цена"]{ background:rgba(224,166,74,.15); color:var(--price); }
+.ec-type-badge[data-type="Бюджет РК"]{ background:rgba(91,141,239,.15); color:var(--budget); }
+.ec-type-badge[data-type="Комментарий"]{ background:rgba(95,184,138,.15); color:var(--comment); }
+.ec-desc{ font-size:13px; color:var(--text); margin:6px 0 10px; font-family:var(--mono); }
+
+.ec-metrics{ display:flex; gap:18px; flex-wrap:wrap; }
+.ec-metric{ font-size:12px; }
+.ec-metric .lbl{ color:var(--text-faint); display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px;}
+.ec-metric .val{ font-family:var(--mono); font-size:13px; }
+.delta{ font-size:11px; margin-left:4px; font-family:var(--mono); }
+.delta.up{ color:var(--up); }
+.delta.down{ color:var(--down); }
+.delta.flat{ color:var(--text-faint); }
+
+.empty-state{ color:var(--text-faint); text-align:center; padding:60px 20px; font-size:13px; }
+
+/* ---------- detail panel ---------- */
+.detail-head{
+  padding:18px 20px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--panel); z-index:2;
+}
+.detail-close{
+  float:right; background:none; border:none; color:var(--text-faint); font-size:18px; cursor:pointer; line-height:1;
+}
+.detail-close:hover{ color:var(--text); }
+.detail-title{ font-weight:600; font-size:15px; }
+.detail-sub{ color:var(--text-dim); font-size:12px; margin-top:3px; }
+.detail-body{ padding:16px 20px; }
+.detail-section-title{
+  font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-faint);
+  margin:18px 0 8px;
+}
+.chart-wrap{ background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px; }
+.metric-toggle{ display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+.metric-toggle button{
+  background:var(--panel); border:1px solid var(--border); color:var(--text-dim);
+  font-size:11px; padding:4px 9px; border-radius:6px; cursor:pointer;
+}
+.metric-toggle button.active{ color:#0f1115; background:var(--accent); border-color:transparent; font-weight:600;}
+
+.det-events-list .event-card{ margin-bottom:8px; padding:10px 12px; cursor:default;}
+.det-after-table{ width:100%; border-collapse:collapse; font-size:11.5px; margin-top:8px; }
+.det-after-table th{ text-align:right; color:var(--text-faint); font-weight:500; padding:4px 6px; border-bottom:1px solid var(--border); }
+.det-after-table th:first-child, .det-after-table td:first-child{ text-align:left; }
+.det-after-table td{ text-align:right; padding:4px 6px; font-family:var(--mono); border-bottom:1px solid #1f232c; }
+.det-after-table tr.before-row td{ color:var(--text-dim); font-style:italic; }
+
+::-webkit-scrollbar{ width:9px; height:9px; }
+::-webkit-scrollbar-thumb{ background:#2a2f3a; border-radius:5px; }
+::-webkit-scrollbar-track{ background:transparent; }
+
+@media (max-width:900px){
+  .col-detail{ position:fixed; right:0; top:0; bottom:0; width:100%; z-index:10; }
+}
+</style>
+</head>
+<body>
+<div class="app" style="display:none;">
+
+  <header>
+    <div>
+      <h1>Анализ действий менеджера — до / после</h1>
+      <div class="sub">Данные с <span id="dateFrom"></span> по <span id="dateTo"></span> · обновляется по будням</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="stat-pills" id="statPills"></div>
+      <button class="reset-btn" id="refreshBtn" title="Перезагрузить данные из Google Таблицы">↻ Обновить</button>
+    </div>
+  </header>
+
+  <div class="filters">
+    <div class="filt-group">
+      <label>Ткань</label>
+      <select id="f-tkan"><option value="">Все</option></select>
+    </div>
+    <div class="filt-group">
+      <label>Размер</label>
+      <select id="f-razmer"><option value="">Все</option></select>
+    </div>
+    <div class="filt-group">
+      <label>Цвет</label>
+      <select id="f-cvet"><option value="">Все</option></select>
+    </div>
+    <div class="filt-group">
+      <label>РК</label>
+      <select id="f-rk"><option value="">Все</option></select>
+    </div>
+    <div class="filt-group">
+      <label>Дата</label>
+      <input type="date" class="search-box" id="f-dateFrom" style="width:135px;">
+      <span style="color:var(--text-faint);">—</span>
+      <input type="date" class="search-box" id="f-dateTo" style="width:135px;">
+    </div>
+    <div class="filt-group">
+      <input class="search-box" id="f-search" placeholder="Поиск по артикулу…">
+    </div>
+    <div class="chip-row" id="typeChips">
+      <div class="chip active" data-type="all">Все события</div>
+      <div class="chip" data-type="Цена">Цена</div>
+      <div class="chip" data-type="Бюджет РК">Бюджет РК</div>
+      <div class="chip" data-type="Комментарий">Комментарий</div>
+    </div>
+    <button class="reset-btn" id="resetBtn">Сбросить фильтры</button>
+  </div>
+
+  <div class="body-grid">
+    <div class="col-list" id="colList"></div>
+    <div class="col-detail" id="colDetail"></div>
+  </div>
+
+</div>
+
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Подключаюсь к Google Таблице…</div>
+    <div class="loading-sub" id="loadingSub">Это обычно занимает несколько секунд</div>
+  </div>
+</div>
+
+<div class="error-screen" id="errorScreen" style="display:none;">
+  <div class="loading-box">
+    <div class="error-icon">⚠</div>
+    <div class="loading-text" id="errorText">Не удалось загрузить данные</div>
+    <div class="loading-sub" id="errorSub"></div>
+    <button class="retry-btn" id="retryBtn">Повторить</button>
+  </div>
+</div>
+
+<script>
+// ====================== sheets-pipeline.js ======================
+// Тянет данные из Google Sheets (CSV через gviz/tq) и воспроизводит
+// тот же пайплайн, что раньше делал Python: парсинг -> детектор событий -> до/после
+
+const PIPELINE_CONFIG = {
+  spreadsheetId: '1JkTLFa3PR9tT3bcg09WKoMH9ZucVWEl9Xz5Ej2v_lDU',
+  sheetNames: ['Рогожка360', 'РогожкаБлэкаут100%', 'Канвас'],
+  metaCols: ['Рейтинг склейки', 'Карточки рейтинг', 'Кол-во отзывов', 'рк', 'Артикула продавца', 'цвет', 'размер'],
+  params: ['Заказано', 'Цена', 'Действие', 'Расход РК', 'Остаток', 'Показы', 'Переходы', 'Корзины'],
+  lookbackDays: 7,
+  budgetThreshold: 0.30,
+  dateFrom: '2026-06-11',  // нижняя граница периода анализа
+  dateTo: null,             // null = до сегодня включительно; можно задать конкретную дату 'YYYY-MM-DD'
+};
+
+const ERROR_TOKENS = new Set(['#N/A', '#DIV/0!', '#REF!', '#VALUE!', '#NAME?', '#NULL!']);
+
+// ---------- 1. CSV parser (handles quoted fields with commas/newlines) ----------
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// ---------- 2. Date parsing: "18.05.2026" -> "2026-05-18" ----------
+function parseDateCell(s) {
+  if (!s) return null;
+  const m = String(s).trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
+
+function toNum(x) {
+  if (x === null || x === undefined || x === '') return null;
+  if (typeof x === 'number') return x;
+  let s = String(x).trim();
+  if (ERROR_TOKENS.has(s)) return null;
+  s = s.replace(/\u00a0/g, '').replace(/\s/g, '').replace(',', '.').replace('р.', '');
+  const v = parseFloat(s);
+  return Number.isNaN(v) ? null : v;
+}
+
+function sanitizeStr(v) {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (s === '' || ERROR_TOKENS.has(s)) return null;
+  return s;
+}
+
+// ---------- 3. Fetch one sheet's CSV ----------
+async function fetchSheetCSV(spreadsheetId, sheetName) {
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Не удалось загрузить лист "${sheetName}" (HTTP ${res.status}). Проверьте, что доступ к таблице открыт "всем у кого есть ссылка".`);
+  return res.text();
+}
+
+// ---------- 4. Parse one sheet into long records ----------
+function parseSheet(csvText, sheetName, dateFrom, dateTo) {
+  const rows = parseCSV(csvText);
+  if (rows.length < 5) return [];
+  const hdr = rows[3].map(h => (h || '').trim());
+
+  const colIdx = {};
+  PIPELINE_CONFIG.metaCols.forEach(name => {
+    const idx = hdr.indexOf(name);
+    if (idx >= 0) colIdx[name] = idx;
+  });
+  const paramIdx = hdr.indexOf('Параметр');
+  if (paramIdx < 0) return [];
+
+  // find date columns
+  const dateCols = [];
+  hdr.forEach((h, i) => {
+    const iso = parseDateCell(h);
+    if (iso && iso >= dateFrom && (!dateTo || iso <= dateTo)) dateCols.push([i, iso]);
+  });
+
+  const records = [];
+  let currentMeta = null;
+  for (let r = 4; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+    const param = (row[paramIdx] || '').trim();
+
+    const artikul = colIdx['Артикула продавца'] !== undefined ? sanitizeStr(row[colIdx['Артикула продавца']]) : null;
+    if (artikul) {
+      currentMeta = {};
+      PIPELINE_CONFIG.metaCols.forEach(name => {
+        if (colIdx[name] !== undefined) currentMeta[name === 'Артикула продавца' ? 'Артикул' : name] = sanitizeStr(row[colIdx[name]]);
+      });
+      currentMeta['Ткань'] = sheetName;
+    }
+
+    if (!PIPELINE_CONFIG.params.includes(param) || !currentMeta) continue;
+
+    dateCols.forEach(([di, iso]) => {
+      const raw = row[di];
+      records.push({ ...currentMeta, Параметр: param, Дата: iso, raw });
+    });
+  }
+  return records;
+}
+
+// ---------- 5. Build wide table per artikul: {date: {param: value}} ----------
+function buildArtikulData(records) {
+  const byArtikul = new Map();
+  records.forEach(rec => {
+    const art = rec.Артикул;
+    if (!art) return;
+    if (!byArtikul.has(art)) {
+      byArtikul.set(art, {
+        meta: { Ткань: rec.Ткань, цвет: rec['цвет'], размер: rec['размер'], рк: rec['рк'],
+                'Рейтинг склейки': rec['Рейтинг склейки'], 'Карточки рейтинг': rec['Карточки рейтинг'],
+                'Кол-во отзывов': rec['Кол-во отзывов'] },
+        byDate: new Map(),
+      });
+    }
+    const entry = byArtikul.get(art);
+    if (!entry.byDate.has(rec.Дата)) entry.byDate.set(rec.Дата, {});
+    const dayRow = entry.byDate.get(rec.Дата);
+    if (rec.Параметр === 'Действие') dayRow['Действие'] = sanitizeStr(rec.raw);
+    else dayRow[rec.Параметр] = toNum(rec.raw);
+  });
+  return byArtikul;
+}
+
+// ---------- 6. Detect events for one artikul ----------
+function detectEvents(byDate) {
+  const dates = [...byDate.keys()].sort();
+  const events = [];
+  dates.forEach((d, i) => {
+    const row = byDate.get(d);
+    const action = row['Действие'];
+    if (action) events.push({ Дата: d, Тип: 'Комментарий', Описание: action });
+
+    if (i === 0) return;
+    const prev = byDate.get(dates[i - 1]);
+
+    const p0 = prev['Цена'], p1 = row['Цена'];
+    if (p0 != null && p1 != null && p0 !== p1) {
+      events.push({ Дата: d, Тип: 'Цена', Описание: `${fmtInt(p0)} → ${fmtInt(p1)}` });
+    }
+
+    const b0 = prev['Расход РК'], b1 = row['Расход РК'];
+    if (b0 != null && b1 != null && b0 > 0) {
+      const change = (b1 - b0) / b0;
+      if (Math.abs(change) >= PIPELINE_CONFIG.budgetThreshold) {
+        const sign = change >= 0 ? '+' : '';
+        events.push({ Дата: d, Тип: 'Бюджет РК', Описание: `${fmtInt(b0)} → ${fmtInt(b1)} (${sign}${Math.round(change*100)}%)` });
+      }
+    }
+  });
+  return events;
+}
+
+function fmtInt(v) { return Math.round(v).toLocaleString('ru-RU'); }
+
+// ---------- 7. Metrics before/after ----------
+function metricsBefore(byDate, dates, eventDate, lookback) {
+  const idx = dates.indexOf(eventDate);
+  const windowDates = dates.slice(Math.max(0, idx - lookback), idx);
+  const cols = ['Показы', 'Переходы', 'Корзины', 'Заказано', 'Расход РК', 'Цена', 'Остаток'];
+  const sums = {}; cols.forEach(c => sums[c] = []);
+  windowDates.forEach(d => {
+    const row = byDate.get(d);
+    cols.forEach(c => { if (row[c] != null) sums[c].push(row[c]); });
+  });
+  const res = {};
+  cols.forEach(c => res[c] = sums[c].length ? sums[c].reduce((a,b)=>a+b,0)/sums[c].length : null);
+  res.CTR = (res['Показы'] && res['Показы'] > 0 && res['Переходы'] != null) ? res['Переходы']/res['Показы']*100 : null;
+  res['CR заказ'] = (res['Переходы'] && res['Переходы'] > 0 && res['Заказано'] != null) ? res['Заказано']/res['Переходы']*100 : null;
+  res.n_days = windowDates.length;
+  return res;
+}
+
+function metricsAfterDaily(byDate, dates, eventDate, nextEventDate) {
+  const idx = dates.indexOf(eventDate);
+  const endIdx = nextEventDate ? dates.indexOf(nextEventDate) : dates.length;
+  const windowDates = dates.slice(idx, endIdx < 0 ? dates.length : endIdx);
+  return windowDates.map(d => {
+    const row = byDate.get(d);
+    const shows = row['Показы'], clicks = row['Переходы'], orders = row['Заказано'];
+    return {
+      date: d,
+      Показы: shows ?? null, Переходы: clicks ?? null, Корзины: row['Корзины'] ?? null,
+      Заказано: orders ?? null, 'Расход РК': row['Расход РК'] ?? null, Цена: row['Цена'] ?? null,
+      Остаток: row['Остаток'] ?? null,
+      CTR: (shows && shows > 0 && clicks != null) ? clicks/shows*100 : null,
+      'CR заказ': (clicks && clicks > 0 && orders != null) ? orders/clicks*100 : null,
+    };
+  });
+}
+
+// ---------- 8. Full pipeline: fetch all sheets -> events + daily series ----------
+async function runPipeline(config, onProgress) {
+  const dateTo = config.dateTo || new Date().toISOString().slice(0, 10);
+  const allRecords = [];
+  for (const sheetName of config.sheetNames) {
+    onProgress && onProgress(`Загружаю лист «${sheetName}»…`);
+    const csvText = await fetchSheetCSV(config.spreadsheetId, sheetName);
+    const recs = parseSheet(csvText, sheetName, config.dateFrom, dateTo);
+    allRecords.push(...recs);
+  }
+
+  onProgress && onProgress('Считаю события и метрики…');
+  const byArtikul = buildArtikulData(allRecords);
+
+  const events = [];
+  const daily = {};
+  const artMeta = {};
+
+  byArtikul.forEach((entry, art) => {
+    const dates = [...entry.byDate.keys()].sort();
+    if (dates.length === 0) return;
+
+    artMeta[art] = {
+      tkan: entry.meta['Ткань'], cvet: normColor(entry.meta['цвет']), razmer: normSize(entry.meta['размер']),
+      rk: entry.meta['рк'], rating: toNum(entry.meta['Рейтинг склейки']), reviews: toNum(entry.meta['Кол-во отзывов']),
+    };
+
+    daily[art] = dates.map(d => {
+      const row = entry.byDate.get(d);
+      return { date: d, shows: row['Показы'] ?? null, clicks: row['Переходы'] ?? null, cart: row['Корзины'] ?? null,
+                orders: row['Заказано'] ?? null, spend: row['Расход РК'] ?? null, price: row['Цена'] ?? null, stock: row['Остаток'] ?? null };
+    });
+
+    const evs = detectEvents(entry.byDate).sort((a,b) => a.Дата.localeCompare(b.Дата));
+    evs.forEach((ev, i) => {
+      const nextDate = i + 1 < evs.length ? evs[i+1].Дата : null;
+      const before = metricsBefore(entry.byDate, dates, ev.Дата, config.lookbackDays);
+      const after = metricsAfterDaily(entry.byDate, dates, ev.Дата, nextDate);
+      events.push({
+        artikul: art, tkan: artMeta[art].tkan, cvet: artMeta[art].cvet, razmer: artMeta[art].razmer,
+        rk: artMeta[art].rk, rating: artMeta[art].rating, reviews: artMeta[art].reviews,
+        type: ev.Тип, date: ev.Дата, desc: ev.Описание, before, after,
+      });
+    });
+  });
+
+  return { events, daily, artMeta, generatedAt: new Date().toISOString().slice(0,10) };
+}
+
+function normSize(s) { return s ? s.replace(/Х/g, 'х').trim() || null : null; }
+function normColor(c) {
+  if (!c) return null;
+  let s = c.replace(/_/g, '-').trim();
+  s = s.replace(/-\d+$/, '');
+  return s || null;
+}
+
+</script>
+<script>
+let DATA = null, EVENTS = null, DAILY = null, ART_META = null;
+
+
+const state = { tkan:'', razmer:'', cvet:'', rk:'', type:'all', search:'', dateFrom:'', dateTo:'', openArt:null };
+
+const TYPE_RU = {Цена:'Цена', 'Бюджет РК':'Бюджет РК', Комментарий:'Комментарий'};
+
+function fmtNum(v, dec=0){
+  if (v===null || v===undefined || Number.isNaN(v)) return '—';
+  return v.toLocaleString('ru-RU', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+function fmtDate(d){
+  const [y,m,day] = d.split('-');
+  return `${day}.${m}.${y}`;
+}
+
+function uniqueSorted(arr){
+  return [...new Set(arr.filter(x=>x))].sort((a,b)=>a.localeCompare(b,'ru'));
+}
+
+function populateSelect(id, values){
+  const sel = document.getElementById(id);
+  values.forEach(v=>{
+    const o = document.createElement('option');
+    o.value = v; o.textContent = v;
+    sel.appendChild(o);
+  });
+}
+
+function initFilters(){
+  populateSelect('f-tkan', uniqueSorted(EVENTS.map(e=>e.tkan)));
+  populateSelect('f-razmer', uniqueSorted(EVENTS.map(e=>e.razmer)));
+  populateSelect('f-cvet', uniqueSorted(EVENTS.map(e=>e.cvet)));
+  populateSelect('f-rk', uniqueSorted(EVENTS.map(e=>e.rk)));
+
+  document.getElementById('f-tkan').addEventListener('change', e=>{state.tkan=e.target.value; render();});
+  document.getElementById('f-razmer').addEventListener('change', e=>{state.razmer=e.target.value; render();});
+  document.getElementById('f-cvet').addEventListener('change', e=>{state.cvet=e.target.value; render();});
+  document.getElementById('f-rk').addEventListener('change', e=>{state.rk=e.target.value; render();});
+  document.getElementById('f-search').addEventListener('input', e=>{state.search=e.target.value.trim().toLowerCase(); render();});
+  document.getElementById('f-dateFrom').addEventListener('change', e=>{state.dateFrom=e.target.value; render();});
+  document.getElementById('f-dateTo').addEventListener('change', e=>{state.dateTo=e.target.value; render();});
+
+  document.getElementById('typeChips').addEventListener('click', e=>{
+    const chip = e.target.closest('.chip');
+    if(!chip) return;
+    state.type = chip.dataset.type;
+    [...document.querySelectorAll('.chip')].forEach(c=>c.classList.toggle('active', c===chip));
+    render();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    state.tkan=''; state.razmer=''; state.cvet=''; state.rk=''; state.type='all'; state.search=''; state.dateFrom=''; state.dateTo='';
+    document.getElementById('f-tkan').value='';
+    document.getElementById('f-razmer').value='';
+    document.getElementById('f-cvet').value='';
+    document.getElementById('f-rk').value='';
+    document.getElementById('f-search').value='';
+    document.getElementById('f-dateFrom').value='';
+    document.getElementById('f-dateTo').value='';
+    [...document.querySelectorAll('.chip')].forEach(c=>c.classList.toggle('active', c.dataset.type==='all'));
+    render();
+  });
+}
+
+function filteredEvents(){
+  return EVENTS.filter(e=>{
+    if(state.tkan && e.tkan!==state.tkan) return false;
+    if(state.razmer && e.razmer!==state.razmer) return false;
+    if(state.cvet && e.cvet!==state.cvet) return false;
+    if(state.rk && e.rk!==state.rk) return false;
+    if(state.type!=='all' && e.type!==state.type) return false;
+    if(state.search && !e.artikul.toLowerCase().includes(state.search)) return false;
+    if(state.dateFrom && e.date < state.dateFrom) return false;
+    if(state.dateTo && e.date > state.dateTo) return false;
+    return true;
+  }).sort((a,b)=> b.date.localeCompare(a.date));
+}
+
+function deltaSpan(before, after, decimals=0, invert=false){
+  if(before===null || before===undefined || after===null || after===undefined || before===0) return '';
+  const pct = ((after-before)/Math.abs(before))*100;
+  const cls = Math.abs(pct)<3 ? 'flat' : (pct>0 ? (invert?'down':'up') : (invert?'up':'down'));
+  const sign = pct>0?'+':'';
+  return `<span class="delta ${cls}">${sign}${pct.toFixed(0)}%</span>`;
+}
+
+function renderStatPills(){
+  const evs = filteredEvents();
+  const arts = new Set(evs.map(e=>e.artikul)).size;
+  const byType = {Цена:0,'Бюджет РК':0,Комментарий:0};
+  evs.forEach(e=>byType[e.type]++);
+  document.getElementById('statPills').innerHTML = `
+    <div class="pill">Событий <b>${evs.length}</b></div>
+    <div class="pill">Товаров <b>${arts}</b></div>
+    <div class="pill" style="color:var(--price)">Цена <b style="color:var(--price)">${byType['Цена']}</b></div>
+    <div class="pill" style="color:var(--budget)">Бюджет <b style="color:var(--budget)">${byType['Бюджет РК']}</b></div>
+    <div class="pill" style="color:var(--comment)">Коммент. <b style="color:var(--comment)">${byType['Комментарий']}</b></div>
+  `;
+}
+
+function eventCardHTML(e, compact=false){
+  const after0 = e.after && e.after[0];
+  const metrics = ['Показы','Переходы','Расход РК','Заказано'];
+  const keys = {Показы:'Показы', Переходы:'Переходы', 'Расход РК':'Расход РК', Заказано:'Заказано'};
+  let metricsHTML = '';
+  if(after0){
+    metricsHTML = metrics.map(m=>{
+      const b = e.before[m], a = after0[m];
+      return `<div class="ec-metric"><span class="lbl">${m}</span><span class="val">${fmtNum(b,0)} → ${fmtNum(a,0)}</span>${deltaSpan(b,a)}</div>`;
+    }).join('');
+  } else {
+    metricsHTML = metrics.map(m=>`<div class="ec-metric"><span class="lbl">${m} (до)</span><span class="val">${fmtNum(e.before[m],0)}</span></div>`).join('');
+  }
+  return `
+    <div class="event-card" data-type="${e.type}" data-artikul="${e.artikul}">
+      <div class="ec-top">
+        <div>
+          <span class="ec-type-badge" data-type="${e.type}">${TYPE_RU[e.type]}</span>
+          <div class="ec-art">${e.artikul}</div>
+          <div class="ec-tags"><span>${e.tkan}</span><span>${e.razmer||''}</span><span>${e.cvet||''}</span><span>${e.rk||''}</span></div>
+        </div>
+        <div class="ec-date">${fmtDate(e.date)}</div>
+      </div>
+      <div class="ec-desc">${e.desc}</div>
+      <div class="ec-metrics">${metricsHTML}</div>
+    </div>
+  `;
+}
+
+function renderList(){
+  const evs = filteredEvents();
+  const list = document.getElementById('colList');
+  if(evs.length===0){
+    list.innerHTML = `<div class="empty-state">Нет событий по выбранным фильтрам</div>`;
+    return;
+  }
+  list.innerHTML = `<div class="list-meta">${evs.length} событий, отсортировано по дате (новые сверху)</div>` +
+    evs.map(e=>eventCardHTML(e)).join('');
+
+  list.querySelectorAll('.event-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      openDetail(card.dataset.artikul);
+    });
+  });
+}
+
+// ---------- detail panel with chart ----------
+let activeMetrics = ['shows','clicks'];
+const METRIC_DEFS = {
+  shows:{label:'Показы', color:'#5b8def'},
+  clicks:{label:'Переходы', color:'#5fb88a'},
+  cart:{label:'Корзины', color:'#b98ae0'},
+  orders:{label:'Заказано', color:'#e2645e'},
+  spend:{label:'Расход РК', color:'#e0a64a'},
+  price:{label:'Цена', color:'#8b92a3'},
+};
+
+function openDetail(artikul){
+  state.openArt = artikul;
+  const panel = document.getElementById('colDetail');
+  panel.classList.add('open');
+
+  const meta = ART_META[artikul] || {};
+  const artEvents = EVENTS.filter(e=>e.artikul===artikul).sort((a,b)=>a.date.localeCompare(b.date));
+
+  panel.innerHTML = `
+    <div class="detail-head">
+      <button class="detail-close" id="closeDetail">✕</button>
+      <div class="detail-title">${artikul}</div>
+      <div class="detail-sub">${meta.tkan||''} · ${meta.razmer||''} · ${meta.cvet||''} · ${meta.rk||''} · рейтинг ${meta.rating??'—'} (${meta.reviews??'—'} отз.)</div>
+    </div>
+    <div class="detail-body">
+      <div class="detail-section-title">Динамика</div>
+      <div class="metric-toggle" id="metricToggle">
+        ${Object.entries(METRIC_DEFS).map(([k,v])=>`<button data-m="${k}" class="${activeMetrics.includes(k)?'active':''}">${v.label}</button>`).join('')}
+      </div>
+      <div class="chart-wrap"><svg id="chartSvg" width="100%" viewBox="0 0 440 200" preserveAspectRatio="none"></svg></div>
+
+      <div class="detail-section-title">События по этому товару (${artEvents.length})</div>
+      <div class="det-events-list">
+        ${artEvents.map(e=>eventDetailCardHTML(e)).join('')}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('closeDetail').addEventListener('click', closeDetail);
+  document.getElementById('metricToggle').addEventListener('click', e=>{
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    const m = btn.dataset.m;
+    if(activeMetrics.includes(m)){
+      if(activeMetrics.length>1) activeMetrics = activeMetrics.filter(x=>x!==m);
+    } else {
+      if(activeMetrics.length>=3) activeMetrics.shift();
+      activeMetrics.push(m);
+    }
+    drawChart(artikul, artEvents);
+    [...panel.querySelectorAll('.metric-toggle button')].forEach(b=>b.classList.toggle('active', activeMetrics.includes(b.dataset.m)));
+  });
+
+  drawChart(artikul, artEvents);
+}
+
+function eventDetailCardHTML(e){
+  const rows = e.after.map((d,i)=>`
+    <tr><td>+${i+1} (${fmtDate(d.date).slice(0,5)})</td><td>${fmtNum(d.shows??d['Показы'])}</td><td>${fmtNum(d.clicks??d['Переходы'])}</td><td>${fmtNum(d.spend??d['Расход РК'])}</td><td>${fmtNum(d.orders??d['Заказано'])}</td></tr>
+  `).join('');
+  return `
+    <div class="event-card" data-type="${e.type}" style="cursor:default;">
+      <div class="ec-top">
+        <div>
+          <span class="ec-type-badge" data-type="${e.type}">${TYPE_RU[e.type]}</span>
+          <div class="ec-desc" style="margin:4px 0 0;">${e.desc}</div>
+        </div>
+        <div class="ec-date">${fmtDate(e.date)}</div>
+      </div>
+      <table class="det-after-table">
+        <tr><th>День</th><th>Показы</th><th>Перех.</th><th>Расход</th><th>Заказ</th></tr>
+        <tr class="before-row"><td>До (ср. ${e.before.n_days}д)</td><td>${fmtNum(e.before['Показы'])}</td><td>${fmtNum(e.before['Переходы'])}</td><td>${fmtNum(e.before['Расход РК'])}</td><td>${fmtNum(e.before['Заказано'])}</td></tr>
+        ${rows}
+      </table>
+    </div>
+  `;
+}
+
+function closeDetail(){
+  document.getElementById('colDetail').classList.remove('open');
+  state.openArt = null;
+}
+
+function drawChart(artikul, artEvents){
+  const data = DAILY[artikul] || [];
+  const svg = document.getElementById('chartSvg');
+  if(!svg || data.length===0){ if(svg) svg.innerHTML=''; return; }
+
+  const W=440, H=200, padL=36, padR=10, padT=10, padB=22;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+
+  const dates = data.map(d=>d.date);
+  const xScale = i => padL + (i/(Math.max(dates.length-1,1)))*plotW;
+
+  let svgEls = [];
+
+  // grid
+  for(let gy=0; gy<=4; gy++){
+    const y = padT + gy*(plotH/4);
+    svgEls.push(`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#2a2f3a" stroke-width="1"/>`);
+  }
+
+  activeMetrics.forEach(mKey=>{
+    const vals = data.map(d=>d[mKey]);
+    const valid = vals.filter(v=>v!==null && v!==undefined);
+    if(valid.length===0) return;
+    const max = Math.max(...valid), min = Math.min(0,...valid);
+    const yScale = v => padT + plotH - ((v-min)/((max-min)||1))*plotH;
+
+    let path = '';
+    let started = false;
+    vals.forEach((v,i)=>{
+      if(v===null || v===undefined){ started=false; return; }
+      const x=xScale(i), y=yScale(v);
+      path += (started? 'L':'M') + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+      started = true;
+    });
+    const color = METRIC_DEFS[mKey].color;
+    svgEls.push(`<path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`);
+    vals.forEach((v,i)=>{
+      if(v===null||v===undefined) return;
+      svgEls.push(`<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(v).toFixed(1)}" r="2" fill="${color}"/>`);
+    });
+  });
+
+  // event markers
+  artEvents.forEach(e=>{
+    const idx = dates.indexOf(e.date);
+    if(idx<0) return;
+    const x = xScale(idx);
+    const color = e.type==='Цена'? '#e0a64a' : e.type==='Бюджет РК' ? '#5b8def' : '#5fb88a';
+    svgEls.push(`<line x1="${x.toFixed(1)}" y1="${padT}" x2="${x.toFixed(1)}" y2="${H-padB}" stroke="${color}" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>`);
+  });
+
+  // x labels (first, mid, last)
+  [0, Math.floor((dates.length-1)/2), dates.length-1].forEach(i=>{
+    if(i<0||i>=dates.length) return;
+    const x = xScale(i);
+    svgEls.push(`<text x="${x.toFixed(1)}" y="${H-6}" font-size="9" fill="#5b6172" text-anchor="middle" font-family="monospace">${fmtDate(dates[i]).slice(0,5)}</text>`);
+  });
+
+  svg.innerHTML = svgEls.join('');
+}
+
+function render(){
+  renderStatPills();
+  renderList();
+}
+
+function showLoading(text, sub){
+  document.getElementById('loadingScreen').style.display = 'flex';
+  document.getElementById('errorScreen').style.display = 'none';
+  document.querySelector('.app').style.display = 'none';
+  if(text) document.getElementById('loadingText').textContent = text;
+  if(sub) document.getElementById('loadingSub').textContent = sub;
+}
+
+function showError(text, sub){
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('errorScreen').style.display = 'flex';
+  document.querySelector('.app').style.display = 'none';
+  document.getElementById('errorText').textContent = text;
+  document.getElementById('errorSub').textContent = sub || '';
+}
+
+function showApp(){
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('errorScreen').style.display = 'none';
+  document.querySelector('.app').style.display = 'flex';
+}
+
+async function loadData(){
+  showLoading('Подключаюсь к Google Таблице…', '');
+  try{
+    DATA = await runPipeline(PIPELINE_CONFIG, (msg) => {
+      document.getElementById('loadingText').textContent = msg;
+    });
+    EVENTS = DATA.events;
+    DAILY = DATA.daily;
+    ART_META = DATA.artMeta;
+
+    if(EVENTS.length === 0){
+      showError('Данные загрузились, но событий не найдено', 'Проверьте период дат и названия листов в настройках.');
+      return;
+    }
+
+    const dates = Object.values(DAILY).flat().map(d=>d.date).sort();
+    document.getElementById('dateFrom').textContent = dates.length? fmtDate(dates[0]) : '—';
+    document.getElementById('dateTo').textContent = dates.length? fmtDate(dates[dates.length-1]) : '—';
+    initFilters();
+    render();
+    showApp();
+  } catch(err){
+    console.error(err);
+    showError('Не удалось загрузить данные из Google Таблицы', err.message || String(err));
+  }
+}
+
+document.getElementById('retryBtn').addEventListener('click', loadData);
+document.getElementById('refreshBtn').addEventListener('click', loadData);
+
+loadData();
+</script>
+
+</body>
+</html>
