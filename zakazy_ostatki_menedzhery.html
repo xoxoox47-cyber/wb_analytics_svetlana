@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Заказы и остатки по менеджерам</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#161922; --panel2:#1d2129; --border:#2a2f3a;
+  --text:#e7e9ee; --text-dim:#8b92a3; --text-faint:#5b6172;
+  --accent:#5b8def; --up:#5fb88a; --down:#e2645e;
+  --mono: 'SF Mono', 'Consolas', 'Menlo', monospace;
+  --sans: -apple-system, 'Segoe UI', Arial, sans-serif;
+}
+*{box-sizing:border-box;}
+body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; line-height:1.4; }
+.app{ display:flex; flex-direction:column; min-height:100vh; }
+
+header{
+  padding:16px 24px; border-bottom:1px solid var(--border); background:var(--panel);
+  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+}
+header h1{ font-size:16.5px; margin:0; font-weight:600; }
+header .sub{ color:var(--text-dim); font-size:12px; margin-top:2px; }
+.reset-btn{
+  background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:7px;
+  padding:7px 12px; font-size:12.5px; cursor:pointer;
+}
+.reset-btn:hover{ color:var(--text); border-color:#3a4150; }
+
+/* manager tabs */
+.mgr-tabs{ display:flex; gap:2px; padding:0 24px; background:var(--panel); border-bottom:1px solid var(--border); overflow-x:auto; }
+.mgr-tab{
+  padding:11px 18px; font-size:13.5px; color:var(--text-dim); cursor:pointer; border-bottom:2px solid transparent;
+  white-space:nowrap; display:flex; align-items:center; gap:7px;
+}
+.mgr-tab:hover{ color:var(--text); }
+.mgr-tab.active{ color:var(--text); border-bottom-color:var(--accent); font-weight:600; }
+.mgr-tab .count{ font-size:11px; color:var(--text-faint); font-family:var(--mono); }
+.mgr-tab.active .count{ color:var(--text-dim); }
+
+.filters{
+  padding:12px 24px; border-bottom:1px solid var(--border); background:var(--panel);
+  display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+}
+.filters label{ font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; margin-right:6px;}
+select, .search-box{
+  background:var(--panel2); border:1px solid var(--border); color:var(--text);
+  border-radius:7px; padding:7px 10px; font-size:13px; font-family:var(--sans); outline:none;
+}
+select:hover, .search-box:hover{ border-color:#3a4150; }
+.search-box{ width:220px; }
+.chip-row{ display:flex; gap:6px; }
+.chip{ border:1px solid var(--border); background:var(--panel2); color:var(--text-dim); border-radius:20px; padding:6px 13px; font-size:12.5px; cursor:pointer; }
+.chip:hover{ border-color:#3a4150; color:var(--text); }
+.chip.active{ background:var(--accent); color:#0f1115; font-weight:600; border-color:transparent; }
+
+.stat-pills{ display:flex; gap:10px; padding:12px 24px; flex-wrap:wrap; }
+.pill{ background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:7px 12px; font-size:12px; color:var(--text-dim); display:flex; gap:6px; align-items:baseline; }
+.pill b{ color:var(--text); font-size:14px; font-family:var(--mono); }
+.pill.good b{ color:var(--up); } .pill.bad b{ color:var(--down); }
+
+.table-wrap{ flex:1; overflow-y:auto; padding:0 24px 24px; }
+table.items{ width:100%; border-collapse:collapse; font-size:12.5px; }
+table.items th{
+  text-align:right; padding:9px 10px; background:var(--panel2); color:var(--text-faint); font-weight:500;
+  font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; position:sticky; top:0; z-index:1; cursor:pointer; white-space:nowrap;
+}
+table.items th:first-child, table.items th:nth-child(2){ text-align:left; }
+table.items th:hover{ color:var(--text); }
+table.items td{ text-align:right; padding:8px 10px; border-top:1px solid #1f232c; font-family:var(--mono); }
+table.items td:first-child, table.items td:nth-child(2){ text-align:left; font-family:var(--sans); }
+table.items tbody tr{ cursor:pointer; }
+table.items tbody tr:hover td{ background:#1a1e26; }
+table.items .group-sep th{ background:var(--panel); color:var(--text-dim); font-size:12px; text-transform:none; letter-spacing:0; padding:10px; text-align:left; position:sticky; top:33px; }
+
+.section-divider{ width:1px; background:var(--border); }
+.status-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+.status-dot.up{ background:var(--up); } .status-dot.down{ background:var(--down); } .status-dot.flat{ background:var(--text-faint); }
+.funnel-cell.up{ color:var(--up); } .funnel-cell.down{ color:var(--down); }
+
+.expand-row td{ padding:0; border-top:none; }
+.expand-content{ background:var(--panel2); padding:10px 16px; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.wh-table{ width:100%; border-collapse:collapse; font-size:11.5px; }
+.wh-table th{ text-align:right; color:var(--text-faint); font-weight:500; padding:4px 8px; }
+.wh-table th:first-child{ text-align:left; }
+.wh-table td{ text-align:right; padding:3px 8px; font-family:var(--mono); }
+.wh-table td:first-child{ text-align:left; font-family:var(--sans); }
+
+.loading-screen, .error-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; }
+.loading-box{ text-align:center; max-width:380px; padding:24px; }
+.loading-spinner{ width:34px; height:34px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; margin:0 auto 18px; animation:spin .9s linear infinite; }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.loading-text{ font-size:14.5px; margin-bottom:6px; }
+.loading-sub{ font-size:12.5px; color:var(--text-faint); }
+.error-icon{ font-size:28px; color:var(--down); margin-bottom:10px; }
+.retry-btn{ margin-top:16px; background:var(--accent); color:#0f1115; border:none; border-radius:7px; padding:9px 20px; font-size:13px; font-weight:600; cursor:pointer; }
+
+::-webkit-scrollbar{ width:9px; height:9px; }
+::-webkit-scrollbar-thumb{ background:#2a2f3a; border-radius:5px; }
+::-webkit-scrollbar-track{ background:transparent; }
+</style>
+</head>
+<body>
+
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Подключаюсь к Google Таблицам…</div>
+    <div class="loading-sub">229 тыс. строк заказов — загрузка может занять некоторое время</div>
+  </div>
+</div>
+
+<div class="error-screen" id="errorScreen" style="display:none;">
+  <div class="loading-box">
+    <div class="error-icon">⚠</div>
+    <div class="loading-text" id="errorText">Не удалось загрузить данные</div>
+    <div class="loading-sub" id="errorSub"></div>
+    <button class="retry-btn" id="retryBtn">Повторить</button>
+  </div>
+</div>
+
+<div class="app" style="display:none;">
+  <header>
+    <div>
+      <h1>Заказы и остатки по менеджерам</h1>
+      <div class="sub">Данные с <span id="dateFrom"></span> по <span id="dateTo"></span> · разворот по складам по клику</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button class="reset-btn" id="refreshBtn">↻ Обновить</button>
+    </div>
+  </header>
+
+  <div class="mgr-tabs" id="mgrTabs"></div>
+
+  <div class="filters">
+    <div class="filt-group">
+      <label>Группа</label>
+      <select id="f-group"><option value="">Все</option></select>
+    </div>
+    <div class="filt-group">
+      <input class="search-box" id="f-search" placeholder="Поиск по артикулу…">
+    </div>
+    <div class="chip-row" id="statusChips">
+      <div class="chip active" data-status="all">Все</div>
+      <div class="chip" data-status="up">Заказы выросли</div>
+      <div class="chip" data-status="down">Заказы упали</div>
+      <div class="chip" data-status="flat">Без изменений</div>
+    </div>
+    <button class="reset-btn" id="resetFiltersBtn">Сбросить</button>
+  </div>
+
+  <div class="stat-pills" id="statPills"></div>
+
+  <div class="table-wrap">
+    <table class="items" id="itemsTable"></table>
+  </div>
+</div>
+
+<script id="pipeline-script">
+// ====================== manager-pipeline.js ======================
+// Источники:
+// 1) Таблица заказов (229к строк): артикул x дата x склад -> заказано/выкуплено/остаток. Менеджер, товарная группа.
+// 2) Лист data (рекламная воронка): артикул x дата -> показы/переходы/корзины/заказы по типам.
+// Склейка по "Артикул продавца".
+
+const MGR_CONFIG = {
+  ordersSpreadsheetId: '1qmAcGTsNE9w1bbOH2rCc9VPLFI2TtG8FuUSC8n0tIuY',
+  ordersSheetName: 'АнализЗаказов',
+  funnelSpreadsheetId: '1Olf_n2Jz_Yn6qN7WuWriC3PEkrvLEZgd-G2vNf-BYVM',
+  funnelSheetName: 'data',
+  dateFrom: null,  // null = автоматически: последние N дней
+  daysBack: 35,     // сколько дней истории тянуть (с запасом для недельных средних)
+};
+
+const ERR_TOKENS = new Set(['#N/A', '#DIV/0!', '#REF!', '#VALUE!', '#NAME?', '#NULL!']);
+
+function mgrToNum(x) {
+  if (x === null || x === undefined || x === '') return null;
+  if (typeof x === 'number') return x;
+  let s = String(x).trim();
+  if (ERR_TOKENS.has(s)) return null;
+  s = s.replace(/\u00a0/g, '').replace(/\s/g, '').replace(',', '.');
+  const v = parseFloat(s);
+  return Number.isNaN(v) ? null : v;
+}
+
+function mgrSanitize(v) {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (s === '' || ERR_TOKENS.has(s)) return null;
+  return s;
+}
+
+function mgrParseDate(s) {
+  if (!s) return null;
+  const str = String(s).trim();
+  let m = str.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = str.match(/^Date\((\d+),(\d+),(\d+)/);
+  if (m) return `${m[1]}-${String(Number(m[2])+1).padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return null;
+}
+
+function mgrParseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+async function mgrFetchCSV(spreadsheetId, sheetName) {
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Не удалось загрузить лист «${sheetName}» (HTTP ${res.status}). Проверьте доступ к таблице "всем у кого есть ссылка".`);
+  return res.text();
+}
+
+const ORDERS_COL = {
+  group: 1, date: 5, artikul: 11, warehouse: 16,
+  ordered: 17, orderedRub: 18, bought: 19, stock: 21, manager: 26,
+};
+
+function parseOrdersSheet(csvText, dateFrom) {
+  const rows = mgrParseCSV(csvText);
+  if (rows.length < 4) return [];
+  let headerRowIdx = 2;
+  if (!(rows[2] && rows[2][16] === 'Склад')) {
+    for (let i = 0; i < Math.min(5, rows.length); i++) {
+      if (rows[i][16] === 'Склад') { headerRowIdx = i; break; }
+    }
+  }
+  const records = [];
+  for (let r = headerRowIdx + 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length < 22) continue;
+    const artikul = mgrSanitize(row[ORDERS_COL.artikul]);
+    if (!artikul) continue;
+    const dateISO = mgrParseDate(row[ORDERS_COL.date]);
+    if (!dateISO || (dateFrom && dateISO < dateFrom)) continue;
+
+    records.push({
+      artikul,
+      date: dateISO,
+      group: mgrSanitize(row[ORDERS_COL.group]),
+      manager: mgrSanitize(row[ORDERS_COL.manager]),
+      warehouse: mgrSanitize(row[ORDERS_COL.warehouse]) || 'Не указан',
+      ordered: mgrToNum(row[ORDERS_COL.ordered]) || 0,
+      orderedRub: mgrToNum(row[ORDERS_COL.orderedRub]) || 0,
+      bought: mgrToNum(row[ORDERS_COL.bought]) || 0,
+      stock: mgrToNum(row[ORDERS_COL.stock]) || 0,
+    });
+  }
+  return records;
+}
+
+const FUNNEL_COL = {
+  date: 'Дата данных', artikul: 'Артикул продавца',
+  shows: 'Показы реклама', clicks: 'Переходы реклама',
+  cartAds: 'Кол-во корзин реклама', cartOrganic: 'Кол-во корзин органика',
+  ordersTotal: 'Кол-во заказов реклама -всего заказов асс+поиск+полки',
+};
+
+function parseFunnelForManagers(csvText, dateFrom, wantedArtikuls) {
+  const rows = mgrParseCSV(csvText);
+  if (rows.length < 2) return new Map();
+  const hdr = rows[0].map(h => (h || '').trim());
+  const idx = {};
+  Object.entries(FUNNEL_COL).forEach(([key, name]) => {
+    const i = hdr.indexOf(name);
+    if (i >= 0) idx[key] = i;
+  });
+  if (idx.date === undefined || idx.artikul === undefined) return new Map();
+
+  const byArtikul = new Map();
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+    const artikul = mgrSanitize(row[idx.artikul]);
+    if (!artikul || (wantedArtikuls && !wantedArtikuls.has(artikul))) continue;
+    const iso = mgrParseDate(row[idx.date]);
+    if (!iso || (dateFrom && iso < dateFrom)) continue;
+
+    if (!byArtikul.has(artikul)) byArtikul.set(artikul, new Map());
+    byArtikul.get(artikul).set(iso, {
+      shows: mgrToNum(row[idx.shows]),
+      clicks: mgrToNum(row[idx.clicks]),
+      cartAds: mgrToNum(row[idx.cartAds]),
+      cartOrganic: mgrToNum(row[idx.cartOrganic]),
+      orders: mgrToNum(row[idx.ordersTotal]),
+    });
+  }
+  return byArtikul;
+}
+
+function aggregateByArtikul(orderRecords, funnelByArtikul) {
+  const byArt = new Map();
+
+  orderRecords.forEach(rec => {
+    if (!byArt.has(rec.artikul)) {
+      byArt.set(rec.artikul, {
+        artikul: rec.artikul, group: rec.group, manager: rec.manager,
+        byDate: new Map(),
+        byWarehouse: new Map(),
+      });
+    }
+    const a = byArt.get(rec.artikul);
+    if (!a.group && rec.group) a.group = rec.group;
+    if (!a.manager && rec.manager) a.manager = rec.manager;
+
+    if (!a.byDate.has(rec.date)) a.byDate.set(rec.date, { ordered: 0, orderedRub: 0, bought: 0, stock: 0 });
+    const d = a.byDate.get(rec.date);
+    d.ordered += rec.ordered; d.orderedRub += rec.orderedRub; d.bought += rec.bought; d.stock += rec.stock;
+
+    if (!a.byWarehouse.has(rec.warehouse)) a.byWarehouse.set(rec.warehouse, { ordered: 0, orderedRub: 0, bought: 0, lastStock: 0, lastDate: '' });
+    const w = a.byWarehouse.get(rec.warehouse);
+    w.ordered += rec.ordered; w.orderedRub += rec.orderedRub; w.bought += rec.bought;
+    if (rec.date >= w.lastDate) { w.lastStock = rec.stock; w.lastDate = rec.date; }
+  });
+
+  const result = [];
+  byArt.forEach((a, artikul) => {
+    const dates = [...a.byDate.keys()].sort();
+    if (dates.length === 0) return;
+
+    const totalOrdered = dates.reduce((s,d)=>s+a.byDate.get(d).ordered, 0);
+    const totalOrderedRub = dates.reduce((s,d)=>s+a.byDate.get(d).orderedRub, 0);
+    const totalBought = dates.reduce((s,d)=>s+a.byDate.get(d).bought, 0);
+    const buyoutRate = totalOrdered > 0 ? (totalBought/totalOrdered*100) : null;
+
+    const lastDate = dates[dates.length-1];
+    const currentStock = a.byDate.get(lastDate).stock;
+
+    const refDate = lastDate; // "сегодня" для этого товара = последний день, по которому есть данные
+    const last7 = dates.filter(d => d < refDate).slice(-7);
+    const weekOrdered = last7.reduce((s,d)=>s+a.byDate.get(d).ordered, 0);
+    const avgPerDay7 = last7.length ? weekOrdered/last7.length : null;
+    const turnoverWeeks = (avgPerDay7 && avgPerDay7 > 0) ? (currentStock / (avgPerDay7*7)) : null;
+
+    const todayOrdered = a.byDate.get(refDate).ordered;
+    let status = 'flat';
+    if (avgPerDay7 != null) {
+      const diff = (todayOrdered ?? 0) - avgPerDay7;
+      if (diff >= 1) status = 'up';
+      else if (diff <= -1) status = 'down';
+      if (avgPerDay7 < 0.15 && (todayOrdered ?? 0) === 0) status = 'flat';
+    } else {
+      status = 'no_data';
+    }
+
+    const funnelMap = funnelByArtikul ? funnelByArtikul.get(artikul) : null;
+    let funnelChange = 'flat', funnelSummary = null;
+    if (funnelMap) {
+      const fDates = [...funnelMap.keys()].sort();
+      const recent = fDates.filter(d => d < refDate).slice(-7);
+      const prior = fDates.filter(d => d < refDate).slice(-14, -7);
+      const sum = (arr, key) => arr.reduce((s,d)=> s + (funnelMap.get(d)[key]||0), 0);
+      const recentShows = sum(recent,'shows'), recentClicks = sum(recent,'clicks'), recentOrders = sum(recent,'orders');
+      const priorShows = sum(prior,'shows'), priorClicks = sum(prior,'clicks'), priorOrders = sum(prior,'orders');
+      const recentCTR = recentShows>0 ? recentClicks/recentShows*100 : null;
+      const recentCR = recentClicks>0 ? recentOrders/recentClicks*100 : null;
+      const priorCR = priorClicks>0 ? priorOrders/priorClicks*100 : null;
+      funnelSummary = { shows: recentShows, clicks: recentClicks, orders: recentOrders, ctr: recentCTR, cr: recentCR };
+      if (priorCR != null && recentCR != null && Math.abs(recentCR-priorCR) >= 1) funnelChange = recentCR > priorCR ? 'up' : 'down';
+      else if (priorShows>0 && recentShows===0) funnelChange = 'down';
+    }
+
+    result.push({
+      artikul, group: a.group, manager: a.manager,
+      totalOrdered, totalOrderedRub, totalBought, buyoutRate,
+      currentStock, avgPerDay7, turnoverWeeks, status, lastDate,
+      funnelSummary, funnelChange,
+      warehouses: [...a.byWarehouse.entries()].map(([wh,w]) => ({ warehouse: wh, ...w })).sort((x,y)=>y.ordered-x.ordered),
+    });
+  });
+  return result;
+}
+
+async function runManagerPipeline(config, onProgress) {
+  onProgress && onProgress('Загружаю таблицу заказов…');
+  const ordersCsv = await mgrFetchCSV(config.ordersSpreadsheetId, config.ordersSheetName);
+
+  const today = new Date();
+  const dateFrom = config.dateFrom || new Date(today.getTime() - config.daysBack*86400000).toISOString().slice(0,10);
+  const todayISO = today.toISOString().slice(0,10);
+
+  onProgress && onProgress('Обрабатываю заказы и остатки…');
+  const orderRecords = parseOrdersSheet(ordersCsv, dateFrom);
+  const wantedArtikuls = new Set(orderRecords.map(r=>r.artikul));
+
+  let funnelByArtikul = new Map();
+  if (config.funnelSpreadsheetId) {
+    onProgress && onProgress(`Загружаю рекламную воронку (${wantedArtikuls.size} артикулов)…`);
+    try {
+      const funnelCsv = await mgrFetchCSV(config.funnelSpreadsheetId, config.funnelSheetName);
+      funnelByArtikul = parseFunnelForManagers(funnelCsv, dateFrom, wantedArtikuls);
+    } catch (err) {
+      console.error('Funnel load failed:', err);
+      onProgress && onProgress('Воронка не загрузилась, продолжаю без неё…');
+    }
+  }
+
+  onProgress && onProgress('Считаю агрегаты по товарам…');
+  const items = aggregateByArtikul(orderRecords, funnelByArtikul);
+
+  const managers = [...new Set(items.map(i=>i.manager).filter(Boolean))].sort();
+  const groups = [...new Set(items.map(i=>i.group).filter(Boolean))].sort();
+
+  return { items, managers, groups, dateFrom, dateTo: todayISO };
+}
+
+</script>
+
+<script>
+let DATA = null;
+const state = { manager: null, group: '', search: '', status: 'all', sortKey: 'totalOrdered', sortDir: 'desc', expanded: new Set() };
+
+function fmtNum(v, dec=0){
+  if (v===null || v===undefined || Number.isNaN(v)) return '—';
+  return v.toLocaleString('ru-RU', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+function fmtDate(d){ if(!d) return '—'; const [y,m,day]=d.split('-'); return `${day}.${m}.${y}`; }
+
+function showLoading(text){ document.getElementById('loadingScreen').style.display='flex'; document.getElementById('errorScreen').style.display='none'; document.querySelector('.app').style.display='none'; if(text) document.getElementById('loadingText').textContent=text; }
+function showError(text, sub){ document.getElementById('loadingScreen').style.display='none'; document.getElementById('errorScreen').style.display='flex'; document.querySelector('.app').style.display='none'; document.getElementById('errorText').textContent=text; document.getElementById('errorSub').textContent=sub||''; }
+function showApp(){ document.getElementById('loadingScreen').style.display='none'; document.getElementById('errorScreen').style.display='none'; document.querySelector('.app').style.display='flex'; document.querySelector('.app').style.flexDirection='column'; }
+
+function initManagerTabs(){
+  const tabsEl = document.getElementById('mgrTabs');
+  const counts = {};
+  DATA.items.forEach(i => { const m = i.manager || 'Без менеджера'; counts[m] = (counts[m]||0)+1; });
+  const managers = [...DATA.managers, ...(counts['Без менеджера'] ? ['Без менеджера'] : [])];
+  if(!state.manager) state.manager = managers[0];
+
+  tabsEl.innerHTML = managers.map(m => `<div class="mgr-tab ${m===state.manager?'active':''}" data-mgr="${m}">${m} <span class="count">${counts[m]||0}</span></div>`).join('');
+  tabsEl.querySelectorAll('.mgr-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      state.manager = tab.dataset.mgr;
+      state.expanded.clear();
+      [...tabsEl.querySelectorAll('.mgr-tab')].forEach(t=>t.classList.toggle('active', t===tab));
+      render();
+    });
+  });
+}
+
+function initFilters(){
+  const groupSel = document.getElementById('f-group');
+  DATA.groups.forEach(g=>{ const o=document.createElement('option'); o.value=g; o.textContent=g; groupSel.appendChild(o); });
+  groupSel.addEventListener('change', e=>{ state.group=e.target.value; render(); });
+  document.getElementById('f-search').addEventListener('input', e=>{ state.search=e.target.value.trim().toLowerCase(); render(); });
+  document.getElementById('statusChips').addEventListener('click', e=>{
+    const chip = e.target.closest('.chip'); if(!chip) return;
+    state.status = chip.dataset.status;
+    [...document.querySelectorAll('#statusChips .chip')].forEach(c=>c.classList.toggle('active', c===chip));
+    render();
+  });
+  document.getElementById('resetFiltersBtn').addEventListener('click', ()=>{
+    state.group=''; state.search=''; state.status='all';
+    document.getElementById('f-group').value=''; document.getElementById('f-search').value='';
+    [...document.querySelectorAll('#statusChips .chip')].forEach(c=>c.classList.toggle('active', c.dataset.status==='all'));
+    render();
+  });
+  document.getElementById('refreshBtn').addEventListener('click', loadData);
+  document.getElementById('retryBtn').addEventListener('click', loadData);
+}
+
+function filteredItems(){
+  return DATA.items.filter(i=>{
+    const mgr = i.manager || 'Без менеджера';
+    if (mgr !== state.manager) return false;
+    if (state.group && i.group !== state.group) return false;
+    if (state.search && !i.artikul.toLowerCase().includes(state.search)) return false;
+    if (state.status !== 'all' && i.status !== state.status) return false;
+    return true;
+  }).sort((a,b)=>{
+    const k = state.sortKey;
+    let av = a[k], bv = b[k];
+    if (av==null) av = -Infinity; if (bv==null) bv = -Infinity;
+    if (typeof av === 'string') return state.sortDir==='asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return state.sortDir==='asc' ? av-bv : bv-av;
+  });
+}
+
+function renderStatPills(items){
+  const totalOrdered = items.reduce((s,i)=>s+i.totalOrdered,0);
+  const totalBought = items.reduce((s,i)=>s+i.totalBought,0);
+  const totalStock = items.reduce((s,i)=>s+i.currentStock,0);
+  const buyout = totalOrdered>0 ? (totalBought/totalOrdered*100) : null;
+  const up = items.filter(i=>i.status==='up').length;
+  const down = items.filter(i=>i.status==='down').length;
+  document.getElementById('statPills').innerHTML = `
+    <div class="pill">Товаров <b>${items.length}</b></div>
+    <div class="pill">Заказано шт. <b>${fmtNum(totalOrdered)}</b></div>
+    <div class="pill">Выкуплено шт. <b>${fmtNum(totalBought)}</b></div>
+    <div class="pill">% выкупа <b>${fmtNum(buyout,1)}%</b></div>
+    <div class="pill">Остаток шт. <b>${fmtNum(totalStock)}</b></div>
+    <div class="pill good">Выросли <b>${up}</b></div>
+    <div class="pill bad">Упали <b>${down}</b></div>
+  `;
+}
+
+const COLS = [
+  {key:'artikul', label:'Артикул'}, {key:'group', label:'Группа'},
+  {key:'totalOrdered', label:'Заказано шт'}, {key:'totalOrderedRub', label:'Заказано ₽'},
+  {key:'totalBought', label:'Выкуплено шт'}, {key:'buyoutRate', label:'% выкупа'},
+  {key:'currentStock', label:'Остаток'}, {key:'turnoverWeeks', label:'Обор. (нед)'},
+  {key:'status', label:'Статус'},
+  {key:'funnel_shows', label:'Показы'}, {key:'funnel_clicks', label:'Перех.'},
+  {key:'funnel_ctr', label:'CTR'}, {key:'funnel_cr', label:'CR заказ'},
+];
+
+function renderTable(){
+  const items = filteredItems();
+  renderStatPills(items);
+  const table = document.getElementById('itemsTable');
+
+  const headerHTML = `<tr>${COLS.map(c=>`<th data-key="${c.key}">${c.label}${state.sortKey===c.key ? (state.sortDir==='asc'?' ▲':' ▼') : ''}</th>`).join('')}</tr>`;
+
+  const rowsHTML = items.map(i=>{
+    const statusLabel = {up:'Рост', down:'Падение', flat:'Стабильно', no_data:'Нет данных'}[i.status] || i.status;
+    const f = i.funnelSummary || {};
+    const fcellClass = i.funnelChange==='up' ? 'funnel-cell up' : i.funnelChange==='down' ? 'funnel-cell down' : '';
+    const isExpanded = state.expanded.has(i.artikul);
+    const whRows = i.warehouses.map(w=>`
+      <tr><td>${w.warehouse}</td><td>${fmtNum(w.ordered)}</td><td>${fmtNum(w.orderedRub)}</td><td>${fmtNum(w.bought)}</td><td>${fmtNum(w.lastStock)}</td><td>${fmtDate(w.lastDate)}</td></tr>
+    `).join('');
+    const expandHTML = isExpanded ? `
+      <tr class="expand-row"><td colspan="${COLS.length}"><div class="expand-content">
+        <table class="wh-table">
+          <tr><th>Склад</th><th>Заказано шт</th><th>Заказано ₽</th><th>Выкуплено шт</th><th>Остаток</th><th>Посл. дата</th></tr>
+          ${whRows}
+        </table>
+      </div></td></tr>` : '';
+
+    return `
+      <tr data-artikul="${i.artikul}">
+        <td>${i.artikul}</td><td>${i.group||''}</td>
+        <td>${fmtNum(i.totalOrdered)}</td><td>${fmtNum(i.totalOrderedRub)}</td>
+        <td>${fmtNum(i.totalBought)}</td><td>${fmtNum(i.buyoutRate,1)}%</td>
+        <td>${fmtNum(i.currentStock)}</td><td>${fmtNum(i.turnoverWeeks,1)}</td>
+        <td><span class="status-dot ${i.status}"></span>${statusLabel}</td>
+        <td>${fmtNum(f.shows)}</td><td>${fmtNum(f.clicks)}</td>
+        <td class="${fcellClass}">${fmtNum(f.ctr,1)}%</td><td class="${fcellClass}">${fmtNum(f.cr,1)}%</td>
+      </tr>
+      ${expandHTML}
+    `;
+  }).join('');
+
+  table.innerHTML = headerHTML + (rowsHTML || `<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--text-faint);padding:30px;">Нет товаров по выбранным фильтрам</td></tr>`);
+
+  table.querySelectorAll('th').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key = th.dataset.key;
+      if (state.sortKey === key) state.sortDir = state.sortDir==='asc' ? 'desc' : 'asc';
+      else { state.sortKey = key; state.sortDir = 'desc'; }
+      renderTable();
+    });
+  });
+  table.querySelectorAll('tbody tr[data-artikul], tr[data-artikul]').forEach(tr=>{
+    tr.addEventListener('click', ()=>{
+      const art = tr.dataset.artikul;
+      if (state.expanded.has(art)) state.expanded.delete(art); else state.expanded.add(art);
+      renderTable();
+    });
+  });
+}
+
+function render(){ renderTable(); }
+
+async function loadData(){
+  showLoading('Подключаюсь к Google Таблицам…');
+  try{
+    DATA = await runManagerPipeline(MGR_CONFIG, (msg)=>{ document.getElementById('loadingText').textContent = msg; });
+    if (DATA.items.length === 0){ showError('Данные загрузились, но товаров не найдено', 'Проверьте структуру таблицы заказов.'); return; }
+    document.getElementById('dateFrom').textContent = fmtDate(DATA.dateFrom);
+    document.getElementById('dateTo').textContent = fmtDate(DATA.dateTo);
+    initManagerTabs();
+    initFilters();
+    render();
+    showApp();
+  } catch(err){
+    console.error(err);
+    showError('Не удалось загрузить данные', err.message || String(err));
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
